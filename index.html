@@ -334,7 +334,12 @@
 <script type="module">
 const D = await (async () => {
     const q = new URLSearchParams(location.hash ? location.hash.slice(1) : location.search);
-    const r = await fetch('https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tablero?datos=1&k=' + encodeURIComponent(q.get('k') ?? ''));
+    let k = q.get('k') ?? '';
+    try {
+      if (k) localStorage.setItem('cf_clave', k);      // recuerda la clave en este dispositivo
+      else k = localStorage.getItem('cf_clave') ?? ''; // link pelado: usa la recordada
+    } catch (e) {}
+    const r = await fetch('https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tablero?datos=1&k=' + encodeURIComponent(k));
     if (!r.ok) {
       document.body.innerHTML = '<div style="font-family:Lato,sans-serif;padding:48px;max-width:60ch">' +
         '<h2>No se pudo abrir el tablero</h2><p>Revisá que el link esté completo ' +
