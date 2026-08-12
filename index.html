@@ -161,6 +161,45 @@
          font-weight:300;color:var(--gris);display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
   @media(max-width:820px){.kpis{grid-template-columns:repeat(2,1fr);gap:14px 0}
     .trebol{display:none}.botonera{position:static;margin-top:14px}h1{font-size:26pt}}
+
+  /* ---- 12/08: portada con botones, un bloque por pantalla ---- */
+  .oculto{display:none!important}
+  .nav{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:32px 0 6px}
+  .navb{display:flex;flex-direction:column;gap:7px;text-align:left;cursor:pointer;font-family:Lato;
+        background:#fff;border:1px solid var(--linea);border-left:3px solid var(--verde);
+        padding:20px 22px 22px;transition:transform .12s,box-shadow .12s,border-color .12s}
+  .navb:hover{border-left-color:var(--ocre);box-shadow:0 3px 14px rgba(0,0,0,.07);transform:translateY(-2px)}
+  .navb .nt{font-size:14pt;font-weight:900;color:var(--verde);letter-spacing:-.01em;line-height:1.15}
+  .navb .ng{font-size:9.8pt;font-weight:300;color:var(--gris-claro);line-height:1.5}
+  .navb .nf{font-size:8.2pt;font-weight:700;color:var(--ocre);text-transform:uppercase;
+            letter-spacing:.2em;margin-top:6px}
+  .volver{display:inline-flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;
+          font-family:Lato;font-size:9.2pt;font-weight:700;color:var(--verde);text-transform:uppercase;
+          letter-spacing:.18em;padding:0;margin:0 0 20px}
+  .volver:hover{color:var(--ocre)}
+  .h2row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 8px}
+  .h2row h2{margin:0}
+  .comolee{background:none;border:none;cursor:pointer;font-family:Lato;font-size:8.4pt;font-weight:700;
+           color:var(--ocre);text-transform:uppercase;letter-spacing:.16em;padding:0 0 1px;
+           border-bottom:1px dotted var(--ocre-borde)}
+  .comolee:hover{color:var(--verde);border-bottom-color:var(--verde)}
+
+  /* ---- banda de estado: que dia se subio, y si algo esta caido ---- */
+  .estado{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff;
+          border:1px solid var(--linea);border-left:3px solid var(--pos);padding:13px 18px;margin:24px 0 0}
+  .estado.mal{border-left-color:var(--neg);background:#fdf6f4}
+  .estado .dot{width:8px;height:8px;border-radius:50%;background:var(--pos);flex:none}
+  .estado.mal .dot{background:var(--neg)}
+  .estado .et{font-size:10.8pt;font-weight:700;color:var(--tinta)}
+  .estado .eg{font-size:9.4pt;font-weight:300;color:var(--gris-claro)}
+  .estado .esp{flex:1 1 auto}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:8.2pt;font-weight:700;white-space:nowrap;
+        text-transform:uppercase;letter-spacing:.14em;padding:4px 10px;border-radius:99px;
+        background:var(--verde-papel);color:var(--verde)}
+  .pill.mal{background:#f8e2dc;color:var(--neg)}
+  .pill b{font-size:11pt;line-height:1}
+  tr.falla th,tr.falla td{background:#fdf3f0;color:var(--neg);font-weight:700}
+  .bitnota{font-size:9.4pt;font-weight:300;color:var(--gris);line-height:1.5;margin-top:12px}
 </style>
 </head>
 <body>
@@ -171,8 +210,7 @@
     <p class="antetitulo">Lacau y C&iacute;a S.A.</p>
     <div class="filete-verde"></div>
     <h1>Cash Flow &middot; Proyecci&oacute;n</h1>
-    <p class="bajada">C&oacute;mo viene la caja proyectada de la empresa, foto a foto.
-    Cada foto es una bajada completa del cash flow de Albor.</p>
+    <p class="bajada">C&oacute;mo viene la caja proyectada de la empresa, foto a foto.</p>
     <div class="botonera">
       <button class="btn" id="btn-ayuda">&iquest;C&oacute;mo se lee?</button>
       <button class="btn" id="btn-tc">Tipo de cambio</button>
@@ -180,29 +218,55 @@
     </div>
   </header>
 
+  <button class="volver oculto" id="volver">&larr; Volver al inicio</button>
+
   <div class="kpis" id="kpis"></div>
-  <div class="san" id="san"><span class="dot"></span><span id="san-txt"></span></div>
+
+  <div class="estado" id="san">
+    <span class="dot"></span>
+    <span class="et" id="est-dia">&hellip;</span>
+    <span class="eg" id="san-txt"></span>
+    <span class="esp"></span>
+    <span class="pill" id="est-sup">datos</span>
+    <span class="pill" id="est-pag">p&aacute;gina</span>
+    <button class="btn" id="btn-bit">Bit&aacute;cora de subidas</button>
+  </div>
+
   <div class="aviso-sup" id="aviso">
     <span>Est&aacute;s viendo un escenario con supuestos modificados, no los n&uacute;meros oficiales.</span>
     <a id="aviso-reset">Volver a lo oficial</a>
   </div>
 
-  <section style="margin-top:36px">
+  <div class="nav" id="nav">
+    <button class="navb" data-ir="comparador">
+      <span class="nt">Comparador de fotos</span>
+      <span class="ng">Las pr&oacute;ximas fechas, la matriz y la diferencia entre dos bajadas
+      le&iacute;das a la misma fecha.</span>
+      <span class="nf">Abrir &rarr;</span></button>
+    <button class="navb" data-ir="rubros">
+      <span class="nt">Evoluci&oacute;n por rubro</span>
+      <span class="ng">C&oacute;mo se movi&oacute; cada rubro foto a foto. Ac&aacute; est&aacute;
+      la explicaci&oacute;n de cada salto del balance.</span>
+      <span class="nf">Abrir &rarr;</span></button>
+    <button class="navb" data-ir="todo">
+      <span class="nt">Todo junto</span>
+      <span class="ng">Los dos bloques en una sola p&aacute;gina, para leer de corrido
+      o imprimir.</span>
+      <span class="nf">Abrir &rarr;</span></button>
+  </div>
+
+  <section data-b="comparador" style="margin-top:36px">
     <p class="rotulo">Bloque 1</p>
-    <h2>Las pr&oacute;ximas fechas</h2>
-    <p class="sub">El saldo proyectado a las cuatro fechas que mueven la caja, seg&uacute;n la
-    &uacute;ltima foto, y cu&aacute;nto cambi&oacute; contra la foto de la semana pasada.
-    En millones de pesos.</p>
+    <div class="h2row"><h2>Las pr&oacute;ximas fechas</h2>
+      <button class="comolee" data-ayuda="ay-fechas">&iquest;c&oacute;mo se lee?</button></div>
     <div class="filete"></div>
     <div class="fechas" id="fechas"></div>
   </section>
 
-  <section>
+  <section data-b="comparador">
     <p class="rotulo">Bloque 2</p>
-    <h2>La matriz</h2>
-    <p class="sub">Cada fila es una foto; cada columna, el balance proyectado a esa fecha visto
-    desde esa foto. Se lee hacia abajo. Las filas grises son bajadas manuales de antes del robot:
-    valen, pero se comparan con cuidado. Todo en millones de pesos.</p>
+    <div class="h2row"><h2>La matriz</h2>
+      <button class="comolee" data-ayuda="ay-matriz">&iquest;c&oacute;mo se lee?</button></div>
     <div class="filete"></div>
     <div class="scrollx"><table>
       <thead><tr><th>Foto</th><th id="h1"></th><th id="h2"></th><th id="h3"></th>
@@ -212,12 +276,10 @@
     <p class="notita" id="nota-matriz"></p>
   </section>
 
-  <section>
+  <section data-b="comparador">
     <p class="rotulo">Bloque 3</p>
-    <h2>Comparador de fotos</h2>
-    <p class="sub">Eleg&iacute; dos fotos y una fecha. La diferencia es siempre <strong>proyecci&oacute;n
-    a la misma fecha</strong>, vista desde las dos bajadas: qu&eacute; cambi&oacute; en el medio,
-    rubro por rubro. En millones de pesos.</p>
+    <div class="h2row"><h2>Comparador de fotos</h2>
+      <button class="comolee" data-ayuda="ay-comparador">&iquest;c&oacute;mo se lee?</button></div>
     <div class="filete"></div>
     <div class="selrow"><span class="sellab">Foto A (antes)</span><div class="fchips" id="selA"></div></div>
     <div class="selrow"><span class="sellab">Foto B (despu&eacute;s)</span><div class="fchips" id="selB"></div></div>
@@ -226,22 +288,16 @@
     <div id="comp-out"></div>
   </section>
 
-  <section>
+  <section data-b="rubros">
     <p class="rotulo">Bloque 4</p>
-    <h2>Evoluci&oacute;n por rubro</h2>
+    <div class="h2row"><h2>Evoluci&oacute;n por rubro</h2>
+      <button class="comolee" data-ayuda="ay-rubros">&iquest;c&oacute;mo se lee?</button></div>
     <p class="sub" id="sub-rubro"></p>
     <div class="filete"></div>
     <div class="scrollx"><table>
       <thead id="hrubro"></thead>
       <tbody id="trubro"></tbody>
     </table></div>
-    <div class="cuadro">
-      <p class="rot">C&oacute;mo se lee</p>
-      <p>Cada fila es un rubro y cada columna una foto: el mismo n&uacute;mero proyectado, visto en
-      distintos momentos. Si un rubro se mueve mucho de una foto a la otra, ah&iacute; est&aacute;
-      la explicaci&oacute;n del movimiento del balance. La l&iacute;nea doble marca el cambio de
-      bajada manual a robot.</p>
-    </div>
   </section>
 
   <footer>
@@ -297,16 +353,18 @@
   futuro, con su fecha. Esa bajada es una &laquo;foto&raquo;. La foto de hoy y la de la semana pasada
   pueden decir cosas distintas porque en el medio se cargaron ventas, se pagaron cuentas o se
   reprogramaron vencimientos. Comparar fotos es ver c&oacute;mo evoluciona lo que la empresa espera.</p>
-  <h4>Las fechas objetivo</h4>
-  <p>El balance se proyecta a tres fechas de corte: el 10/08 (corto), el 30/11 (cierre de campa&ntilde;a
-  de ventas) y el 28/02 (largo). Cada celda de la matriz responde: &laquo;con lo que se sab&iacute;a
-  ese d&iacute;a, &iquest;c&oacute;mo daba la caja acumulada a esa fecha?&raquo;.</p>
+  <h4 id="ay-matriz">La matriz y las fechas objetivo</h4>
+  <p>Cada fila es una foto; cada columna, el balance proyectado a esa fecha visto desde esa foto.
+  Se lee hacia abajo. El balance se proyecta a tres fechas de corte: una corta (que corre sola,
+  siempre la pr&oacute;xima fecha que mueve la caja), el 30/11 &mdash;cierre de campa&ntilde;a de
+  ventas&mdash; y el 28/02 (largo). Cada celda responde: &laquo;con lo que se sab&iacute;a ese
+  d&iacute;a, &iquest;c&oacute;mo daba la caja acumulada a esa fecha?&raquo;. Todo en millones de pesos.</p>
   <h4>Filas grises y &laquo;s/d&raquo;</h4>
   <p>Las fotos de julio se bajaron a mano, antes del robot, con otra configuraci&oacute;n: arrancan
   el d&iacute;a de la bajada (no el 01/06) y la mayor&iacute;a llega solo hasta el 30/11. Por eso van
   en gris, y donde el export no llegaba a la fecha objetivo dice &laquo;s/d&raquo; en vez de inventar
   un n&uacute;mero. El salto entre el 31/07 y el 04/08 es en parte por ese cambio de configuraci&oacute;n.</p>
-  <h4>Las pr&oacute;ximas fechas</h4>
+  <h4 id="ay-fechas">Las pr&oacute;ximas fechas</h4>
   <p>Las cuatro tarjetas de arriba son las fechas que mueven la caja: el viernes se paga en la CO,
   el jueves paga Ager (que lleva su financiero aparte y no entra en este tablero), el d&iacute;a 10
   vencen los arrendamientos y el fin de mes cierra el per&iacute;odo. Cada tarjeta muestra el saldo
@@ -316,11 +374,17 @@
   <p>La proyecci&oacute;n es confiable hasta el 30/11, fin de la campa&ntilde;a de ventas. M&aacute;s
   all&aacute; (la columna del 28/02) el n&uacute;mero existe pero es de baja confianza por dise&ntilde;o
   &mdash; por eso se ve atenuado.</p>
-  <h4>El comparador</h4>
+  <h4 id="ay-comparador">El comparador</h4>
   <p>La regla de oro de este tablero: <strong>las diferencias siempre se calculan a la misma fecha
   objetivo, entre dos bajadas distintas</strong> (el 30/11 visto el jueves contra el 30/11 visto el
   lunes). Nunca se comparan dos fechas objetivo distintas de la misma bajada &mdash; eso mezcla
-  per&iacute;odos y no dice nada. El comparador del bloque 3 te deja elegir cualquier par de fotos.</p>
+  per&iacute;odos y no dice nada. Eleg&iacute; dos fotos y una fecha, y el bloque muestra qu&eacute;
+  cambi&oacute; en el medio, rubro por rubro. En millones de pesos.</p>
+  <h4 id="ay-rubros">Evoluci&oacute;n por rubro</h4>
+  <p>Cada fila es un rubro y cada columna una foto: el mismo n&uacute;mero proyectado, visto en
+  distintos momentos. Se lee hacia la derecha. Si un rubro se mueve mucho de una foto a la otra,
+  ah&iacute; est&aacute; la explicaci&oacute;n del movimiento del balance. La l&iacute;nea doble
+  marca el cambio de bajada manual a robot.</p>
   <h4>De d&oacute;nde salen los n&uacute;meros</h4>
   <p>Del dato crudo: los movimientos de Albor guardados en la base, sin ning&uacute;n retoque a mano.
   Son los mismos datos que alimentan el Excel &laquo;Cash Flow Lacau - Historico.xlsx&raquo;: el Excel
@@ -331,23 +395,61 @@
   aparece un aviso naranja bien visible: lo que se ve es un escenario, no el n&uacute;mero oficial.</p>
 </div>
 
+<div class="modal" id="bitm">
+  <button class="cerrar" id="bitm-x">&#10005;</button>
+  <h3>Bit&aacute;cora de subidas</h3>
+  <p>Un d&iacute;a por fila, del m&aacute;s reciente al m&aacute;s viejo. En rojo, los d&iacute;as
+  en que la bajada no entr&oacute;: casi siempre porque la m&aacute;quina que corre el robot
+  estaba apagada. Los d&iacute;as en falta no rompen el tablero &mdash; se sigue viendo la
+  &uacute;ltima foto buena&mdash; pero conviene saberlo antes de leer un salto.</p>
+  <div id="bit-salud" style="margin-top:14px"></div>
+  <div class="scrollx" style="margin-top:12px"><table class="bit">
+    <thead><tr><th>D&iacute;a</th><th>hora AR</th><th>movimientos</th><th>&Delta; mov.</th><th>origen</th></tr></thead>
+    <tbody id="tbit"></tbody>
+  </table></div>
+  <p class="bitnota" id="bit-nota"></p>
+</div>
+
 <script type="module">
-const D = await (async () => {
-    const q = new URLSearchParams(location.hash ? location.hash.slice(1) : location.search);
-    let k = q.get('k') ?? '';
+// ---------------------------------------------------------------------------
+// Los datos NO viven en esta pagina. Esta pagina es la cascara: el diseño.
+// En cada carga (y cada vez que volves a la pestaña despues de un rato) le
+// pide a Supabase la ultima foto que bajo el robot. Por eso el link se
+// actualiza solo: no hay que republicar nada cuando entra una bajada nueva.
+// ---------------------------------------------------------------------------
+const API = 'https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tablero?datos=1&k=';
+function clave() {
+  const q = new URLSearchParams(location.hash ? location.hash.slice(1) : location.search);
+  let k = q.get('k') ?? '';
+  try {
+    if (k) localStorage.setItem('cf_clave', k);      // recuerda la clave en este dispositivo
+    else k = localStorage.getItem('cf_clave') ?? ''; // link pelado: usa la recordada
+  } catch (e) {}
+  return k;
+}
+async function traer() {
+  let ultimo = 0;
+  for (let i = 0; i < 3; i++) {                      // el endpoint devolvia 500 cada tanto
     try {
-      if (k) localStorage.setItem('cf_clave', k);      // recuerda la clave en este dispositivo
-      else k = localStorage.getItem('cf_clave') ?? ''; // link pelado: usa la recordada
-    } catch (e) {}
-    const r = await fetch('https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tablero?datos=1&k=' + encodeURIComponent(k));
-    if (!r.ok) {
-      document.body.innerHTML = '<div style="font-family:Lato,sans-serif;padding:48px;max-width:60ch">' +
-        '<h2>No se pudo abrir el tablero</h2><p>Revisá que el link esté completo ' +
-        '(la clave va después de #k=). Código: ' + r.status + '</p></div>';
-      throw new Error('sin datos');
-    }
-    return r.json();
-  })();
+      const r = await fetch(API + encodeURIComponent(clave()), { cache: 'no-store' });
+      if (r.ok) return await r.json();
+      ultimo = r.status;
+      if (r.status === 401) break;                   // clave mala: reintentar no sirve
+    } catch (e) { ultimo = 0; }
+    await new Promise(s => setTimeout(s, 400 * (i + 1)));
+  }
+  const e = new Error('sin datos'); e.codigo = ultimo; throw e;
+}
+let D;
+try {
+  D = await traer();
+} catch (e) {
+  document.body.innerHTML = '<div style="font-family:Lato,sans-serif;padding:48px;max-width:60ch">' +
+    '<h2>No se pudo abrir el tablero</h2><p>Revisá que el link esté completo ' +
+    '(la clave va después de #k=). Código: ' + (e.codigo ?? 0) + '</p></div>';
+  throw e;
+}
+let cargadoEn = Date.now();
 const off = new Set();
 const $ = id => document.getElementById(id);
 
@@ -363,6 +465,15 @@ const fmtE = (v, signo) => {
 };
 const cls = v => (v === null || v === undefined) ? 'sd' : (v > .049 ? 'pos' : (v < -.049 ? 'neg' : 'cero'));
 const dm  = iso => iso.slice(8,10) + '/' + iso.slice(5,7);
+const dmy = iso => iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4);
+
+// Las tres fechas objetivo. La corta ya NO esta clavada al 10/08 (quedaba en el
+// pasado y el tablero parecia viejo): es la proxima fecha que mueve la caja,
+// que el endpoint recalcula solo todos los dias.
+const DEF = { f1: (D.rod[0] && D.rod[0].f) || '2026-11-30',
+              f2: '2026-11-30', f3: '2027-02-28' };
+$('f1').value = DEF.f1; $('f2').value = DEF.f2; $('f3').value = DEF.f3;
+$('selFecha').value = DEF.f2;
 
 function balance(i, hasta, cos, fx) {
   if (hasta > D.meta[i].fmax) return null;
@@ -407,7 +518,7 @@ function pintar() {
   const n   = D.meta.length;
 
   const tocado = cos !== 0 || fx > 0 || off.size > 0 ||
-    f1 !== '2026-08-10' || f2 !== '2026-11-30' || f3 !== '2027-02-28';
+    f1 !== DEF.f1 || f2 !== DEF.f2 || f3 !== DEF.f3;
   $('aviso').classList.toggle('on', tocado);
 
   // --- KPIs (siempre a la fecha objetivo 2, ultima foto)
@@ -519,7 +630,7 @@ function chipsFotos(cont, get, set) {
 }
 function chipsFechas() {
   const el = $('selF'); el.innerHTML = '';
-  [['2026-08-10','10/08'],['2026-11-30','30/11'],['2027-02-28','28/02']].forEach(([f, t]) => {
+  [[DEF.f1, dm(DEF.f1)], [DEF.f2, dm(DEF.f2)], [DEF.f3, dm(DEF.f3)]].forEach(([f, t]) => {
     const c = document.createElement('span');
     c.className = 'fchip' + ($('selFecha').value === f ? ' sel' : '');
     c.textContent = t;
@@ -581,6 +692,7 @@ $('selFecha').addEventListener('input', () => { pintarSel(); pintar(); });
 pintarSel();
 
 // --- modal TC
+function pintarTC() {
 $('ttc').innerHTML = D.meta.map((m, i) => {
   const t = D.tc[i];
   return `<tr class="${m.manual ? 'fila-man' : ''}"><th>${dm(m.foto)}${m.manual ? '<span class="tag">manual</span>' : ''}</th>` +
@@ -589,10 +701,78 @@ $('ttc').innerHTML = D.meta.map((m, i) => {
     `<td class="num tenue">${t.min.toLocaleString('es-AR')} &ndash; ${t.max.toLocaleString('es-AR')}</td>` +
     `<td class="num">${t.pond.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td></tr>`;
 }).join('');
+}
 
-// semaforo
-$('san').classList.toggle('mal', !D.san.ok);
-$('san-txt').textContent = D.san.txt;
+// ---------------------------------------------------------------------------
+// Bitacora de subidas y estado de las conexiones.
+// Todo sale de D.meta (una entrada por bajada). Los dias que faltan no vienen
+// en el dato: se deducen comparando el calendario contra las fotos que hay.
+// ---------------------------------------------------------------------------
+function hoyAR() {                                   // el dia de hoy en hora argentina
+  const a = new Date(Date.now() - 3 * 3600e3);
+  return new Date(Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate()));
+}
+function diasDesdeUltima() {
+  const u = D.meta[D.meta.length - 1];
+  return Math.round((hoyAR().getTime() - new Date(u.foto + 'T00:00:00Z').getTime()) / 86400e3);
+}
+function bitacora() {
+  const porDia = new Map();
+  D.meta.forEach((m, i) => porDia.set(m.foto, Object.assign({ i }, m)));
+  const bots = D.meta.filter(m => !m.manual);
+  const filas = [];
+  if (bots.length) {                                 // dia por dia desde que arranco el robot
+    const ini = new Date(bots[0].foto + 'T00:00:00Z').getTime();
+    for (let t = hoyAR().getTime(); t >= ini; t -= 86400e3) {
+      const iso = new Date(t).toISOString().slice(0, 10);
+      filas.push({ iso, m: porDia.get(iso) ?? null });
+    }
+  }
+  D.meta.filter(m => m.manual).slice().reverse()     // las de julio son de antes del robot:
+        .forEach(m => filas.push({ iso: m.foto, m: Object.assign({ i: D.meta.indexOf(m) }, m) }));
+  return filas;                                      // no se les cuenta dia faltante
+}
+function pintarBitacora() {
+  const filas = bitacora();
+  const faltan = filas.filter(f => !f.m).length;
+  $('tbit').innerHTML = filas.map(f => {
+    if (!f.m) return `<tr class="falla"><th>${dmy(f.iso)}</th><td colspan="4">` +
+      `no entr&oacute; la bajada de este d&iacute;a</td></tr>`;
+    const prev = f.m.i > 0 ? D.meta[f.m.i - 1] : null;
+    const dn = prev ? f.m.n - prev.n : null;
+    return `<tr class="${f.m.manual ? 'fila-man' : ''}"><th>${dmy(f.iso)}</th>` +
+      `<td class="num tenue">${f.m.hora}</td>` +
+      `<td class="num">${f.m.n.toLocaleString('es-AR')}</td>` +
+      `<td class="num delta ${cls(dn)}">${dn === null ? '&mdash;' : (dn > 0 ? '+' : '') + dn.toLocaleString('es-AR')}</td>` +
+      `<td class="tenue">${f.m.manual ? 'a mano' : 'robot'}</td></tr>`;
+  }).join('');
+
+  const dias = diasDesdeUltima();
+  const linea = (ok, t) => `<span class="pill ${ok ? '' : 'mal'}">${ok ? '&#10003;' : '&#10007;'} ${t}</span>`;
+  $('bit-salud').innerHTML =
+    linea(true, 'Supabase responde') + ' ' +
+    linea(true, 'GitHub Pages sirve la p&aacute;gina') + ' ' +
+    linea(dias <= 1 && D.san.ok, dias <= 1 ? 'robot al d&iacute;a' : 'robot atrasado ' + dias + ' d&iacute;as');
+  $('bit-nota').innerHTML = (faltan
+    ? '<b>' + faltan + ' d&iacute;a' + (faltan > 1 ? 's' : '') + ' sin bajada</b> desde que arranc&oacute; el robot. '
+    : 'Ninguna bajada falt&oacute; desde que arranc&oacute; el robot. ') +
+    'El robot corre en una m&aacute;quina de la oficina: si esa m&aacute;quina est&aacute; apagada o ' +
+    'dormida a la hora de la bajada, ese d&iacute;a queda en rojo. Supabase y GitHub Pages no ' +
+    'dependen de eso: si esta p&aacute;gina abre y muestra n&uacute;meros, las dos est&aacute;n bien.';
+}
+function pintarEstado() {
+  const u = D.meta[D.meta.length - 1], dias = diasDesdeUltima();
+  const cuando = dias <= 0 ? 'hoy' : dias === 1 ? 'ayer' : 'hace ' + dias + ' d&iacute;as';
+  const mal = !D.san.ok || dias >= 2;
+  $('san').classList.toggle('mal', mal);
+  $('est-dia').innerHTML = 'Informaci&oacute;n subida ' + cuando +
+    ' &middot; ' + dmy(u.foto) + ', ' + u.hora + ' AR';
+  $('san-txt').textContent = D.san.txt;
+  $('est-sup').className = 'pill';
+  $('est-sup').innerHTML = '&#10003; Supabase';
+  $('est-pag').className = 'pill' + (dias <= 1 && D.san.ok ? '' : ' mal');
+  $('est-pag').innerHTML = (dias <= 1 && D.san.ok ? '&#10003;' : '&#10007;') + ' Robot';
+}
 
 // chips
 D.rubros.forEach((r, i) => {
@@ -609,23 +789,82 @@ D.rubros.forEach((r, i) => {
 ['f1','f2','f3','cos','fx'].forEach(id => $(id).addEventListener('input', pintar));
 
 function resetear() {
-  $('f1').value = '2026-08-10'; $('f2').value = '2026-11-30'; $('f3').value = '2027-02-28';
+  $('f1').value = DEF.f1; $('f2').value = DEF.f2; $('f3').value = DEF.f3;
   $('cos').value = 0; $('fx').value = 0; off.clear();
   [...$('chips').children].forEach(c => c.setAttribute('aria-pressed', 'true'));
   pintar();
 }
 $('reset').onclick = resetear; $('aviso-reset').onclick = resetear;
 
-// drawer + modal
+// drawer + modales
 const abrir  = el => { $('velo').classList.add('on'); el.classList.add('on'); };
-const cerrar = () => { $('velo').classList.remove('on'); $('drawer').classList.remove('on'); $('ayuda').classList.remove('on'); $('tcm').classList.remove('on'); };
+const cerrar = () => { $('velo').classList.remove('on');
+  ['drawer','ayuda','tcm','bitm'].forEach(id => $(id).classList.remove('on')); };
 $('btn-tc').onclick = () => abrir($('tcm'));
 $('tcm-x').onclick = () => cerrar();
 $('btn-sup').onclick = () => abrir($('drawer'));
 $('btn-ayuda').onclick = () => abrir($('ayuda'));
+$('btn-bit').onclick = () => abrir($('bitm'));
+$('bitm-x').onclick = () => cerrar();
 $('velo').onclick = cerrar; $('drawer-x').onclick = cerrar; $('ayuda-x').onclick = cerrar;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrar(); });
+
+// ---------------------------------------------------------------------------
+// Un bloque por pantalla. La portada tiene los botones; al tocar uno se abre
+// ese bloque solo. No se duplica nada: es la misma seccion que se muestra o
+// se esconde, asi los numeros siempre salen del mismo lugar.
+// ---------------------------------------------------------------------------
+const VISTAS = { home: [], comparador: ['comparador'], rubros: ['rubros'],
+                 todo: ['comparador', 'rubros'] };
+function ir(v) {
+  if (!VISTAS[v]) v = 'home';
+  document.querySelectorAll('section[data-b]').forEach(s =>
+    s.classList.toggle('oculto', !VISTAS[v].includes(s.dataset.b)));
+  $('nav').classList.toggle('oculto', v !== 'home');
+  $('volver').classList.toggle('oculto', v === 'home');
+  try { sessionStorage.setItem('cf_vista', v); } catch (e) {}
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('.navb').forEach(b => b.onclick = () => ir(b.dataset.ir));
+$('volver').onclick = () => ir('home');
+
+// cada bloque explica como se lee en un boton, no en un parrafo arriba
+document.querySelectorAll('.comolee').forEach(b => b.onclick = () => {
+  abrir($('ayuda'));
+  const t = $(b.dataset.ayuda);
+  if (t) setTimeout(() => t.scrollIntoView({ block: 'start' }), 40);
+});
+
+// ---------------------------------------------------------------------------
+// Refresco solo. Los datos se vuelven a pedir cuando volves a la pestaña
+// despues de 10 minutos, y cada 10 minutos si la dejas abierta. Nadie tiene
+// que avisar que entro una bajada nueva: el link ya la muestra.
+// ---------------------------------------------------------------------------
+async function refrescar(forzar) {
+  if (!forzar && Date.now() - cargadoEn < 10 * 60e3) return;
+  try {
+    const nuevo = await traer();
+    const crecio = nuevo.meta.length !== D.meta.length;
+    D = nuevo;
+    if (crecio || selB >= D.meta.length || selA >= D.meta.length) {
+      selB = D.meta.length - 1;                      // apuntar siempre a la foto nueva
+      selA = Math.max(0, D.meta.length - 2);
+    }
+    cargadoEn = Date.now();
+    pintarSel(); pintar(); pintarTC(); pintarEstado(); pintarBitacora();
+  } catch (e) { /* si el refresco falla, se queda con la foto que ya tenia */ }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescar(); });
+window.addEventListener('focus', () => refrescar());
+setInterval(() => refrescar(), 10 * 60e3);
 
 pintar();
+pintarTC();
+pintarEstado();
+pintarBitacora();
+let vistaIni = 'home';
+try { vistaIni = sessionStorage.getItem('cf_vista') || 'home'; } catch (e) {}
+ir(vistaIni);
 </script>
 </body>
 </html>
