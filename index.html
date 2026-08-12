@@ -183,6 +183,9 @@
            color:var(--ocre);text-transform:uppercase;letter-spacing:.16em;padding:0 0 1px;
            border-bottom:1px dotted var(--ocre-borde)}
   .comolee:hover{color:var(--verde);border-bottom-color:var(--verde)}
+  /* al entrar desde un boton, la seccion que corresponde se prende un rato */
+  .modal h4.foco{background:var(--ocre-fondo);color:var(--ocre);
+                 box-shadow:-8px 0 0 var(--ocre-fondo),8px 0 0 var(--ocre-fondo)}
 
   /* ---- banda de estado: que dia se subio, y si algo esta caido ---- */
   .estado{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff;
@@ -832,8 +835,16 @@ $('volver').onclick = () => ir('home');
 document.querySelectorAll('.comolee').forEach(b => b.onclick = () => {
   const modal = $('ayuda'); abrir(modal);
   const t = $(b.dataset.ayuda);
-  // scrollIntoView movia la pagina de atras; hay que mover el scroll DEL modal
-  if (t) setTimeout(() => { modal.scrollTop = Math.max(0, t.offsetTop - 24); }, 30);
+  if (!t) return;
+  // scrollIntoView movia la pagina de atras; hay que mover el scroll DEL modal.
+  // Cuando la seccion esta al final no se puede subir hasta arriba de todo, asi
+  // que ademas se prende un momento para que se vea cual es.
+  setTimeout(() => {
+    modal.scrollTop = Math.max(0, t.offsetTop - 24);
+    modal.querySelectorAll('h4.foco').forEach(h => h.classList.remove('foco'));
+    t.classList.add('foco');
+    setTimeout(() => t.classList.remove('foco'), 2200);
+  }, 30);
 });
 
 // ---------------------------------------------------------------------------
