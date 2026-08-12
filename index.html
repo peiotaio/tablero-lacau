@@ -50,6 +50,25 @@
              font-weight:700}
   .aviso-sup.on{display:flex;justify-content:space-between;align-items:center;gap:12px}
   .aviso-sup a{color:var(--ocre);cursor:pointer;text-decoration:underline;font-weight:400}
+  /* Auditoria del delta (12/08/2026). Gris cuando el movimiento es limpio,
+     ocre cuando el neto esconde mucha rotacion o hay controles en falla. */
+  .audit{margin:10px 0 0;padding:11px 16px 12px;background:var(--crema-banda);
+         border-left:3px solid var(--gris);border-radius:2px}
+  .audit.alerta{background:var(--ocre-fondo);border-left-color:var(--ocre)}
+  .audit-top{display:flex;align-items:baseline;gap:10px}
+  .audit-sem{font-size:8.2pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+             color:var(--gris-claro)}
+  .audit.alerta .audit-sem{color:var(--ocre)}
+  .audit-piezas{display:grid;grid-template-columns:repeat(4,1fr);margin-top:9px}
+  .audit-pieza{padding:4px 14px 2px 0;border-left:1px solid var(--linea);padding-left:14px}
+  .audit-pieza:first-child{border-left:none;padding-left:0}
+  .audit-pieza .ap-rot{display:block;font-size:8pt;font-weight:700;color:var(--gris-claro);
+                       text-transform:uppercase;letter-spacing:.07em}
+  .audit-pieza .ap-num{display:block;font-size:15pt;font-weight:300;margin-top:2px;
+                       font-variant-numeric:tabular-nums}
+  .audit-pieza.neto .ap-num{font-weight:700}
+  .audit-nota{margin:9px 0 0;font-size:9pt;line-height:1.5;color:var(--tinta-media);max-width:88ch}
+  .nocomp{color:var(--ocre);cursor:help}
 
   section{margin-top:48px}
   .fechas{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
@@ -288,6 +307,25 @@
       <tbody id="acum-tabla"></tbody>
     </table></div>
     <p class="acum-nota oculto" id="acum-nota"></p>
+  </div>
+
+  <!-- AUDITORIA DEL DELTA (12/08/2026).
+       El movimiento entre dos fotos es la RESTA de dos numeros mucho mas
+       grandes: el 12/08 el neto de -55 M salia de altas por -1.628 M contra
+       bajas por +1.582 M. El 96% se cancela. Con solo el neto a la vista, un
+       error de 100 M adentro de esa rotacion no se nota. Este bloque muestra
+       las piezas.
+       Los datos vienen en D.aud, que agrega la edge function v9. Si el
+       endpoint es viejo y no los manda, el bloque queda oculto y la pagina
+       funciona igual que antes. -->
+  <div class="audit oculto" id="audit">
+    <div class="audit-top">
+      <span class="erot" id="audit-rot">C&oacute;mo se compone el movimiento</span>
+      <span class="esp"></span>
+      <span class="audit-sem" id="audit-sem"></span>
+    </div>
+    <div class="audit-piezas" id="audit-piezas"></div>
+    <p class="audit-nota" id="audit-nota"></p>
   </div>
 
   <div class="aviso-sup" id="aviso">
@@ -895,7 +933,13 @@ function pintarBitacora() {
       `<td class="num tenue">${ampm(f.m.hora)}</td>` +
       `<td class="num">${f.m.n.toLocaleString('es-AR')}</td>` +
       `<td class="num delta ${cls(dn)}">${dn === null ? '&mdash;' : (dn > 0 ? '+' : '') + dn.toLocaleString('es-AR')}</td>` +
-      `<td class="tenue">${f.m.manual ? 'a mano' : 'robot'}</td></tr>`;
+      // Una foto puede haber llegado completa y NO servir para comparar: si se
+      // bajo entre las 09:00 y las 17:30 finanzas estaba editando, y si el
+      // rango no arranca el 01/06 le falta el acumulado entero. Se marca, no
+      // se esconde: el dato existe, lo que no vale es el delta contra ella.
+      `<td class="tenue">${f.m.manual ? 'a mano' : 'robot'}` +
+      `${f.m.comparable === false ? ' <span class="nocomp" title="No sirve como base de comparaci&oacute;n: se baj&oacute; en horario de oficina o le falta parte del rango">&#9888;</span>' : ''}` +
+      `</td></tr>`;
   }).join('');
 
   const dias = diasDesdeUltima();
@@ -930,6 +974,57 @@ function pintarEstado() {
   $('est-sup').innerHTML = '&#10003; Supabase';
   $('est-pag').className = 'pill' + (dias <= 1 && D.san.ok ? '' : ' mal');
   $('est-pag').innerHTML = (dias <= 1 && D.san.ok ? '&#10003;' : '&#10007;') + ' Robot';
+  pintarAuditoria();
+}
+
+// Auditoria del delta. Ver el comentario del bloque #audit en el HTML.
+// Regla: si el neto es chico pero las piezas son grandes, el numero es fragil
+// y hay que decirlo, no esconderlo detras de un resultado prolijo.
+const ROTACION_ALERTA = 10;
+function pintarAuditoria() {
+  const box = $('audit');
+  const a = D.aud;
+  // Endpoint viejo (sin D.aud) o sin foto previa con que comparar: no molestar.
+  if (!a || !a.ultima) { box.classList.add('oculto'); return; }
+
+  const u = a.ultima;
+  // Se reusa fmt() del tablero y no un formateo propio: fmt usa el menos
+  // tipografico (U+2212) y la coma decimal. Con un guion ASCII el bloque
+  // desentonaba contra los KPI de arriba.
+  const num = (n) => fmt(n, true);
+  const pieza = (cls, rot, n) =>
+    `<span class="audit-pieza ${cls}"><span class="ap-rot">${rot}</span>` +
+    `<span class="ap-num">${num(n)} M</span></span>`;
+
+  const rotAlta = a.rot !== null && a.rot > ROTACION_ALERTA;
+  box.classList.remove('oculto');
+  box.classList.toggle('alerta', rotAlta || a.fallas > 0);
+
+  $('audit-rot').innerHTML = 'C&oacute;mo se compone el movimiento desde la foto anterior';
+  $('audit-sem').textContent = a.rot === null ? ''
+    : 'rotación ' + Number(a.rot).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '×';
+  $('audit-piezas').innerHTML =
+    pieza('neto', 'Neto', u.neto) +
+    pieza('', 'Altas', u.altas) +
+    pieza('', 'Bajas', u.bajas) +
+    pieza('', 'Modificados', u.modif);
+
+  const partes = [];
+  if (rotAlta) {
+    partes.push(
+      'El neto de <b>' + num(u.neto) + ' M</b> es la resta de dos n&uacute;meros mucho m&aacute;s ' +
+      'grandes: entraron <b>' + num(u.altas) + ' M</b> en movimientos nuevos y salieron <b>' +
+      num(u.bajas) + ' M</b> en movimientos que dejaron de estar. Casi todo se cancela, as&iacute; ' +
+      'que un error grande adentro de esa rotaci&oacute;n casi no movería el resultado. ' +
+      'Mirar el neto solo, este d&iacute;a, alcanza para poco.');
+  } else {
+    partes.push('El movimiento es parejo: el neto refleja bien lo que se movi&oacute;.');
+  }
+  if (a.fallas > 0) {
+    partes.push('Hay <b>' + a.fallas + ' control' + (a.fallas > 1 ? 'es' : '') +
+      ' de integridad en falla</b> (' + a.detalle + ').');
+  }
+  $('audit-nota').innerHTML = partes.join(' ');
 }
 
 // chips
