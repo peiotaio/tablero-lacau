@@ -175,7 +175,7 @@
             letter-spacing:.2em;margin-top:6px}
   .volver{display:inline-flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;
           font-family:Lato;font-size:9.2pt;font-weight:700;color:var(--verde);text-transform:uppercase;
-          letter-spacing:.18em;padding:0;margin:0 0 20px}
+          letter-spacing:.18em;padding:0;margin:26px 0 -6px}
   .volver:hover{color:var(--ocre)}
   .h2row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 8px}
   .h2row h2{margin:0}
@@ -225,7 +225,6 @@
   <div class="estado" id="san">
     <span class="dot"></span>
     <span class="et" id="est-dia">&hellip;</span>
-    <span class="eg" id="san-txt"></span>
     <span class="esp"></span>
     <span class="pill" id="est-sup">datos</span>
     <span class="pill" id="est-pag">p&aacute;gina</span>
@@ -403,6 +402,7 @@
   estaba apagada. Los d&iacute;as en falta no rompen el tablero &mdash; se sigue viendo la
   &uacute;ltima foto buena&mdash; pero conviene saberlo antes de leer un salto.</p>
   <div id="bit-salud" style="margin-top:14px"></div>
+  <p class="bitnota" id="san-txt" style="margin-top:10px"></p>
   <div class="scrollx" style="margin-top:12px"><table class="bit">
     <thead><tr><th>D&iacute;a</th><th>hora AR</th><th>movimientos</th><th>&Delta; mov.</th><th>origen</th></tr></thead>
     <tbody id="tbit"></tbody>
@@ -830,9 +830,10 @@ $('volver').onclick = () => ir('home');
 
 // cada bloque explica como se lee en un boton, no en un parrafo arriba
 document.querySelectorAll('.comolee').forEach(b => b.onclick = () => {
-  abrir($('ayuda'));
+  const modal = $('ayuda'); abrir(modal);
   const t = $(b.dataset.ayuda);
-  if (t) setTimeout(() => t.scrollIntoView({ block: 'start' }), 40);
+  // scrollIntoView movia la pagina de atras; hay que mover el scroll DEL modal
+  if (t) setTimeout(() => { modal.scrollTop = Math.max(0, t.offsetTop - 24); }, 30);
 });
 
 // ---------------------------------------------------------------------------
