@@ -173,12 +173,19 @@
   .navb .ng{font-size:9.8pt;font-weight:300;color:var(--gris-claro);line-height:1.5}
   .navb .nf{font-size:8.2pt;font-weight:700;color:var(--ocre);text-transform:uppercase;
             letter-spacing:.2em;margin-top:6px}
-  .volver{display:inline-flex;align-items:center;gap:8px;background:none;border:none;cursor:pointer;
+  /* queda pegado arriba: desde cualquier punto del bloque se vuelve sin scrollear */
+  .volver{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;width:100%;
+          background:var(--crema);border:none;border-bottom:1px solid var(--linea);cursor:pointer;
           font-family:Lato;font-size:9.2pt;font-weight:700;color:var(--verde);text-transform:uppercase;
-          letter-spacing:.18em;padding:0;margin:26px 0 -6px}
+          letter-spacing:.18em;padding:14px 0 12px;margin:14px 0 -2px}
   .volver:hover{color:var(--ocre)}
   .h2row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 8px}
   .h2row h2{margin:0}
+  /* el titulo del bloque tambien cierra: es el atajo mas a mano si estas leyendo */
+  .h2row h2.h2ir{cursor:pointer}
+  .h2row h2.h2ir:hover{color:var(--ocre)}
+  .h2x{font-size:9.6pt;margin-left:9px;color:var(--linea);vertical-align:middle}
+  .h2row h2.h2ir:hover .h2x{color:var(--ocre)}
   .comolee{background:none;border:none;cursor:pointer;font-family:Lato;font-size:8.4pt;font-weight:700;
            color:var(--ocre);text-transform:uppercase;letter-spacing:.16em;padding:0 0 1px;
            border-bottom:1px dotted var(--ocre-borde)}
@@ -517,6 +524,14 @@ const cls = v => (v === null || v === undefined) ? 'sd' : (v > .049 ? 'pos' : (v
 const dm  = iso => iso.slice(8,10) + '/' + iso.slice(5,7);
 const dmy = iso => iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4);
 
+// La hora viene del endpoint en 24 h ('06:52'). Se muestra con AM/PM porque a
+// simple vista importa mucho si el robot bajo a la mañana o a la tarde.
+const ampm = hhmm => {
+  const [H, M] = hhmm.split(':').map(Number);
+  const h12 = (H % 12) === 0 ? 12 : H % 12;
+  return h12 + ':' + String(M).padStart(2, '0') + ' ' + (H < 12 ? 'AM' : 'PM');
+};
+
 // Las tres fechas objetivo. La corta ya NO esta clavada al 10/08 (quedaba en el
 // pasado y el tablero parecia viejo): es la proxima fecha que mueve la caja,
 // que el endpoint recalcula solo todos los dias.
@@ -665,7 +680,7 @@ function pintar() {
     `<div class="kpi"><span class="cifra ${cls(d)}">${fmt(d,true)}</span>` +
       `<span class="glosa">contra la foto del ${prevComp!==null?dm(D.meta[prevComp.i].foto):'—'}</span></div>` +
     `<div class="kpi"><span class="cifra">${dm(m.foto)}</span>` +
-      `<span class="glosa">&uacute;ltima bajada, ${m.hora} AR &middot; ${m.n.toLocaleString('es-AR')} movimientos</span></div>` +
+      `<span class="glosa">&uacute;ltima bajada, ${ampm(m.hora)} AR &middot; ${m.n.toLocaleString('es-AR')} movimientos</span></div>` +
     `<div class="kpi"><span class="cifra">${n}</span>` +
       `<span class="glosa">fotos acumuladas desde el 14/07</span></div>`;
 
@@ -747,7 +762,7 @@ function pintar() {
 
   pintarComp(cos, fx);
 
-  $('pie-fecha').textContent = '\u00daltima foto: ' + dm(m.foto) + '/2026, ' + m.hora + ' AR';
+  $('pie-fecha').textContent = '\u00daltima foto: ' + dmy(m.foto) + ', ' + ampm(m.hora) + ' AR';
 }
 
 // --- comparador
@@ -875,7 +890,7 @@ function pintarBitacora() {
     const prev = f.m.i > 0 ? D.meta[f.m.i - 1] : null;
     const dn = prev ? f.m.n - prev.n : null;
     return `<tr class="${f.m.manual ? 'fila-man' : ''}"><th>${dmy(f.iso)}</th>` +
-      `<td class="num tenue">${f.m.hora}</td>` +
+      `<td class="num tenue">${ampm(f.m.hora)}</td>` +
       `<td class="num">${f.m.n.toLocaleString('es-AR')}</td>` +
       `<td class="num delta ${cls(dn)}">${dn === null ? '&mdash;' : (dn > 0 ? '+' : '') + dn.toLocaleString('es-AR')}</td>` +
       `<td class="tenue">${f.m.manual ? 'a mano' : 'robot'}</td></tr>`;
@@ -906,8 +921,8 @@ function pintarEstado() {
   // corre cada hora y baja la primera vez que la maquina esta prendida fuera
   // del horario de oficina. Por eso varia tanto de un dia al otro.
   $('est-dia').innerHTML = cuando.charAt(0).toUpperCase() + cuando.slice(1) +
-    ' &middot; ' + dmy(u.foto) + ' &middot; termin&oacute; de bajar ' +
-    '<b>' + u.hora + ' AR</b>';
+    ' &middot; ' + dmy(u.foto) + ' &middot; termin&oacute; de bajar a las ' +
+    '<b>' + ampm(u.hora) + '</b> (hora Argentina)';
   $('san-txt').textContent = D.san.txt;
   $('est-sup').className = 'pill';
   $('est-sup').innerHTML = '&#10003; Supabase';
@@ -969,6 +984,16 @@ function ir(v) {
 }
 document.querySelectorAll('.navb').forEach(b => b.onclick = () => ir(b.dataset.ir));
 $('volver').onclick = () => ir('home');
+
+// Tocar el titulo de un bloque lo cierra y vuelve a la portada. Antes habia que
+// subir hasta arriba de todo para cambiar de bloque; ahora el titulo mas cercano
+// alcanza (y el «volver» de arriba quedo pegado a la pantalla).
+document.querySelectorAll('.h2row h2').forEach(h => {
+  h.classList.add('h2ir');
+  h.title = 'Cerrar y volver al inicio';
+  h.insertAdjacentHTML('beforeend', '<span class="h2x">&#8593;</span>');
+  h.onclick = () => ir('home');
+});
 
 // la linea del acumulado se transforma en la tabla mes por mes, y vuelve
 $('acum-ver').onclick = () => {
