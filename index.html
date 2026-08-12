@@ -278,7 +278,7 @@
       <thead><tr><th>Mes</th><th>del mes</th><th>acumulado</th></tr></thead>
       <tbody id="acum-tabla"></tbody>
     </table></div>
-    <p class="acum-nota" id="acum-nota"></p>
+    <p class="acum-nota oculto" id="acum-nota"></p>
   </div>
 
   <div class="aviso-sup" id="aviso">
@@ -974,6 +974,7 @@ $('volver').onclick = () => ir('home');
 $('acum-ver').onclick = () => {
   const abierto = !$('acum-tabla-wrap').classList.contains('oculto');
   $('acum-tabla-wrap').classList.toggle('oculto', abierto);
+  $('acum-nota').classList.toggle('oculto', abierto);  // la nota habla de la tabla
   $('acum-linea').classList.toggle('oculto', !abierto);
   $('acum-ver').innerHTML = abierto ? 'ver mes a mes &#9662;' : 'ver solo la l&iacute;nea &#9652;';
 };
