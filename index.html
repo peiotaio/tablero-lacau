@@ -177,14 +177,16 @@
   .volver{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:8px;width:100%;
           background:var(--crema);border:none;border-bottom:1px solid var(--linea);cursor:pointer;
           font-family:Lato;font-size:9.2pt;font-weight:700;color:var(--verde);text-transform:uppercase;
-          letter-spacing:.18em;padding:14px 0 12px;margin:14px 0 -2px}
+          letter-spacing:.18em;padding:14px 0 12px;margin:14px 0 -2px;
+          box-shadow:0 7px 12px -9px rgba(0,0,0,.22)}
   .volver:hover{color:var(--ocre)}
   .h2row{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:0 0 8px}
   .h2row h2{margin:0}
   /* el titulo del bloque tambien cierra: es el atajo mas a mano si estas leyendo */
   .h2row h2.h2ir{cursor:pointer}
   .h2row h2.h2ir:hover{color:var(--ocre)}
-  .h2x{font-size:9.6pt;margin-left:9px;color:var(--linea);vertical-align:middle}
+  .h2x{font-size:8pt;font-weight:700;margin-left:11px;color:var(--gris);vertical-align:middle;
+       text-transform:uppercase;letter-spacing:.16em;white-space:nowrap}
   .h2row h2.h2ir:hover .h2x{color:var(--ocre)}
   .comolee{background:none;border:none;cursor:pointer;font-family:Lato;font-size:8.4pt;font-weight:700;
            color:var(--ocre);text-transform:uppercase;letter-spacing:.16em;padding:0 0 1px;
@@ -980,7 +982,9 @@ function ir(v) {
   $('acum').classList.toggle('oculto', v !== 'home');
   $('volver').classList.toggle('oculto', v === 'home');
   try { sessionStorage.setItem('cf_vista', v); } catch (e) {}
-  window.scrollTo(0, 0);
+  // despues del relayout: si se llama de una, el navegador todavia tiene la
+  // altura vieja y la pagina no sube del todo
+  requestAnimationFrame(() => window.scrollTo(0, 0));
 }
 document.querySelectorAll('.navb').forEach(b => b.onclick = () => ir(b.dataset.ir));
 $('volver').onclick = () => ir('home');
@@ -991,7 +995,7 @@ $('volver').onclick = () => ir('home');
 document.querySelectorAll('.h2row h2').forEach(h => {
   h.classList.add('h2ir');
   h.title = 'Cerrar y volver al inicio';
-  h.insertAdjacentHTML('beforeend', '<span class="h2x">&#8593;</span>');
+  h.insertAdjacentHTML('beforeend', '<span class="h2x">&#8593; cerrar</span>');
   h.onclick = () => ir('home');
 });
 
