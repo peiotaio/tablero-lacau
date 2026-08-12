@@ -193,9 +193,31 @@
   .estado.mal{border-left-color:var(--neg);background:#fdf6f4}
   .estado .dot{width:8px;height:8px;border-radius:50%;background:var(--pos);flex:none}
   .estado.mal .dot{background:var(--neg)}
+  .estado .ebloque{display:flex;flex-direction:column;gap:1px}
+  .erot{font-size:8pt;font-weight:700;color:var(--ocre);text-transform:uppercase;letter-spacing:.2em}
   .estado .et{font-size:10.8pt;font-weight:700;color:var(--tinta)}
   .estado .eg{font-size:9.4pt;font-weight:300;color:var(--gris-claro)}
-  .estado .esp{flex:1 1 auto}
+  .estado .esp,.acum-top .esp{flex:1 1 auto}
+
+  /* ---- acumulado mes a mes hasta la fecha objetivo ---- */
+  .acum{background:#fff;border:1px solid var(--linea);padding:15px 18px 17px;margin:14px 0 0}
+  .acum-top{display:flex;align-items:baseline;gap:12px;margin-bottom:11px}
+  .acum-linea{display:flex;flex-wrap:wrap}
+  .acum-linea .mes{flex:1 1 104px;min-width:96px;padding:4px 8px 4px 13px;
+                   border-left:1px solid var(--linea)}
+  .acum-linea .mes:first-child{border-left:none;padding-left:0}
+  .acum-linea .mes .mn{display:block;font-size:8pt;font-weight:700;color:var(--gris);
+                       text-transform:uppercase;letter-spacing:.16em}
+  .acum-linea .mes .mv{display:block;font-size:15.5pt;font-weight:900;letter-spacing:-.015em;
+                       font-variant-numeric:tabular-nums;margin-top:1px}
+  .acum-linea .mes.fin{background:var(--verde-papel);border-left:1px solid var(--verde)}
+  .acum-linea .mes.fin .mn{color:var(--verde)}
+  table.acumt{max-width:460px}
+  table.acumt tr.finrow td,table.acumt tr.finrow th{background:var(--verde-papel);
+    color:var(--verde);font-weight:900;border-top:1px solid var(--verde)}
+  .acum-nota{font-size:8.8pt;font-weight:300;color:var(--gris);line-height:1.5;margin:10px 0 0}
+  @media(max-width:820px){.acum-linea .mes{flex:1 1 33%;min-width:0;padding-left:10px}
+    .acum-linea .mes:nth-child(3n+1){border-left:none;padding-left:0}}
   .pill{display:inline-flex;align-items:center;gap:6px;font-size:8.2pt;font-weight:700;white-space:nowrap;
         text-transform:uppercase;letter-spacing:.14em;padding:4px 10px;border-radius:99px;
         background:var(--verde-papel);color:var(--verde)}
@@ -227,11 +249,29 @@
 
   <div class="estado" id="san">
     <span class="dot"></span>
-    <span class="et" id="est-dia">&hellip;</span>
+    <span class="ebloque">
+      <span class="erot">&Uacute;ltima fecha bajada</span>
+      <span class="et" id="est-dia">&hellip;</span>
+    </span>
     <span class="esp"></span>
     <span class="pill" id="est-sup">datos</span>
     <span class="pill" id="est-pag">p&aacute;gina</span>
     <button class="btn" id="btn-bit">Bit&aacute;cora de subidas</button>
+  </div>
+
+  <div class="acum" id="acum">
+    <div class="acum-top">
+      <span class="erot" id="acum-rot">Acumulado hasta el 30/11</span>
+      <span class="esp"></span>
+      <button class="comolee" id="acum-ver">ver mes a mes &#9662;</button>
+    </div>
+    <div class="acum-linea" id="acum-linea"></div>
+    <div class="scrollx oculto" id="acum-tabla-wrap"><table class="acumt">
+      <thead><tr><th>Mes</th><th>del mes</th><th>acumulado</th></tr></thead>
+      <tbody id="acum-tabla"></tbody>
+    </table></div>
+    <p class="acum-nota">Cada mes suma su neto al mes anterior. El &uacute;ltimo es el acumulado
+    a la fecha objetivo &mdash; el mismo n&uacute;mero grande de arriba. En millones de pesos.</p>
   </div>
 
   <div class="aviso-sup" id="aviso">
@@ -497,6 +537,49 @@ function saldoRubro(i, r, hasta, fx) {
   }
   return hay ? t / 1e6 : (D.filas.some(f => f[0] === i && f[1] === r) ? 0 : null);
 }
+// ---------------------------------------------------------------------------
+// Acumulado mes a mes hasta la fecha objetivo. Es la medida «Importe acumulado»
+// de Albor, sin vueltas: se suma el neto de cada mes al mes anterior. El ultimo
+// mes tiene que dar exactamente el numero grande de arriba — es el mismo
+// calculo que balance(), partido por mes.
+// ---------------------------------------------------------------------------
+const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const nomMes = k => MES[+k.slice(5, 7) - 1] + " '" + k.slice(2, 4);
+
+function mesesAcum(hasta, cos, fx) {
+  const i = D.meta.length - 1;
+  if (hasta > D.meta[i].fmax) return [];
+  const por = new Map();
+  for (const f of D.filas) {
+    if (f[0] !== i || f[2] > hasta || off.has(f[1])) continue;
+    const k = f[2].slice(0, 7);
+    por.set(k, (por.get(k) || 0) + ((f[3] === 1 && fx > 0) ? f[5] * fx : f[4]));
+  }
+  let acc = 0;
+  return [...por.keys()].sort().map(k => {
+    acc += por.get(k);
+    return { k, del: por.get(k) / 1e6, acum: acc / 1e6 + cos };
+  });
+}
+
+function pintarAcum(hasta, cos, fx) {
+  const ms = mesesAcum(hasta, cos, fx);
+  $('acum-rot').innerHTML = 'Acumulado hasta el ' + dm(hasta);
+  if (!ms.length) {
+    $('acum-linea').innerHTML = '<span class="mes"><span class="mn">s/d</span>' +
+      '<span class="mv sd">s/d</span></span>';
+    $('acum-tabla').innerHTML = ''; return;
+  }
+  $('acum-linea').innerHTML = ms.map((m, j) =>
+    `<span class="mes${j === ms.length - 1 ? ' fin' : ''}">` +
+    `<span class="mn">${nomMes(m.k)}</span>` +
+    `<span class="mv ${cls(m.acum)}">${fmt(m.acum)}</span></span>`).join('');
+  $('acum-tabla').innerHTML = ms.map((m, j) =>
+    `<tr class="${j === ms.length - 1 ? 'finrow' : ''}"><th>${nomMes(m.k)}</th>` +
+    `<td class="num delta ${cls(m.del)}">${fmt(m.del, true)}</td>` +
+    `<td class="num ${cls(m.acum)}">${fmt(m.acum)}</td></tr>`).join('');
+}
+
 function spark(vals) {
   const vs = vals.filter(v => v !== null);
   if (vs.length < 2) return '';
@@ -539,6 +622,8 @@ function pintar() {
       `<span class="glosa">&uacute;ltima bajada, ${m.hora} AR &middot; ${m.n.toLocaleString('es-AR')} movimientos</span></div>` +
     `<div class="kpi"><span class="cifra">${n}</span>` +
       `<span class="glosa">fotos acumuladas desde el 14/07</span></div>`;
+
+  pintarAcum(f2, cos, fx);
 
   // --- proximas fechas
   const ref = D.ref, mref = D.meta[ref];
@@ -768,7 +853,7 @@ function pintarEstado() {
   const cuando = dias <= 0 ? 'hoy' : dias === 1 ? 'ayer' : 'hace ' + dias + ' d&iacute;as';
   const mal = !D.san.ok || dias >= 2;
   $('san').classList.toggle('mal', mal);
-  $('est-dia').innerHTML = 'Informaci&oacute;n subida ' + cuando +
+  $('est-dia').innerHTML = cuando.charAt(0).toUpperCase() + cuando.slice(1) +
     ' &middot; ' + dmy(u.foto) + ', ' + u.hora + ' AR';
   $('san-txt').textContent = D.san.txt;
   $('est-sup').className = 'pill';
@@ -824,6 +909,7 @@ function ir(v) {
   document.querySelectorAll('section[data-b]').forEach(s =>
     s.classList.toggle('oculto', !VISTAS[v].includes(s.dataset.b)));
   $('nav').classList.toggle('oculto', v !== 'home');
+  $('acum').classList.toggle('oculto', v !== 'home');
   $('volver').classList.toggle('oculto', v === 'home');
   try { sessionStorage.setItem('cf_vista', v); } catch (e) {}
   window.scrollTo(0, 0);
@@ -831,8 +917,17 @@ function ir(v) {
 document.querySelectorAll('.navb').forEach(b => b.onclick = () => ir(b.dataset.ir));
 $('volver').onclick = () => ir('home');
 
+// la linea del acumulado se transforma en la tabla mes por mes, y vuelve
+$('acum-ver').onclick = () => {
+  const abierto = !$('acum-tabla-wrap').classList.contains('oculto');
+  $('acum-tabla-wrap').classList.toggle('oculto', abierto);
+  $('acum-linea').classList.toggle('oculto', !abierto);
+  $('acum-ver').innerHTML = abierto ? 'ver mes a mes &#9662;' : 'ver solo la l&iacute;nea &#9652;';
+};
+
 // cada bloque explica como se lee en un boton, no en un parrafo arriba
-document.querySelectorAll('.comolee').forEach(b => b.onclick = () => {
+// (solo los que llevan a la ayuda: el de «ver mes a mes» comparte estilo pero no)
+document.querySelectorAll('.comolee[data-ayuda]').forEach(b => b.onclick = () => {
   const modal = $('ayuda'); abrir(modal);
   const t = $(b.dataset.ayuda);
   if (!t) return;
