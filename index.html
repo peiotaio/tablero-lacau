@@ -698,7 +698,9 @@ function pintarCapa(hasta, cos, fx) {
   el.innerHTML =
     capa === 'todo'
       ? 'Este n&uacute;mero <b>incluye la valuaci&oacute;n del stock de granos</b>: ' + fmt(st) +
-        ' M al ' + dm(hasta) + ', a un tipo de cambio que alguien tipe&oacute; a mano en Albor.'
+        ' M al ' + dm(hasta) + ', a un tipo de cambio que alguien tipe&oacute; a mano en Albor. ' +
+        'Si el d&oacute;lar se mueve un 10%, este n&uacute;mero se mueve <b>&plusmn;' +
+        fmt(Math.abs(st) / 10) + ' M</b>.'
     : capa === 'sinstock'
       ? 'Sin los ' + fmt(st) + ' M de stock de granos. Es lo que no depende de valuar mercader&iacute;a.'
     : capa === 'comprometido'
@@ -1118,6 +1120,10 @@ function pintarEstado() {
 // Regla: si el neto es chico pero las piezas son grandes, el numero es fragil
 // y hay que decirlo, no esconderlo detras de un resultado prolijo.
 const ROTACION_ALERTA = 10;
+// Umbral del pasado reescrito (18/08): linea de base medida 04-13/08, el neto
+// de los movimientos con fecha anterior a la foto oscila +/-350 M. Arriba de
+// 2.000 M ya no es el ciclo normal del ERP: alguien borro o reimputo en serio.
+const PASADO_ALERTA = 2000;
 function pintarAuditoria() {
   const box = $('audit');
   const a = D.aud;
@@ -1134,8 +1140,9 @@ function pintarAuditoria() {
     `<span class="ap-num">${num(n)} M</span></span>`;
 
   const rotAlta = a.rot !== null && a.rot > ROTACION_ALERTA;
+  const pasAlta = u.pas != null && Math.abs(u.pas) > PASADO_ALERTA;
   box.classList.remove('oculto');
-  box.classList.toggle('alerta', rotAlta || a.fallas > 0);
+  box.classList.toggle('alerta', rotAlta || pasAlta || a.fallas > 0);
 
   $('audit-rot').innerHTML = 'C&oacute;mo se compone el movimiento desde la foto anterior';
   $('audit-sem').textContent = a.rot === null ? ''
@@ -1144,7 +1151,10 @@ function pintarAuditoria() {
     pieza('neto', 'Neto', u.neto) +
     pieza('', 'Altas', u.altas) +
     pieza('', 'Bajas', u.bajas) +
-    pieza('', 'Modificados', u.modif);
+    pieza('', 'Modificados', u.modif) +
+    // Pasado reescrito (18/08): cuanto del movimiento es el ERP cambiando de
+    // opinion sobre dias que ya pasaron, no plata nueva. Endpoint viejo -> null.
+    (u.pas == null ? '' : pieza(pasAlta ? 'neto' : '', 'Pasado reescrito', u.pas));
 
   const partes = [];
   if (rotAlta) {
@@ -1156,6 +1166,22 @@ function pintarAuditoria() {
       'Mirar el neto solo, este d&iacute;a, alcanza para poco.');
   } else {
     partes.push('El movimiento es parejo: el neto refleja bien lo que se movi&oacute;.');
+  }
+  // Pasado reescrito: separa "lo que paso" de "lo que cambio de opinion el ERP".
+  if (u.pas != null) {
+    if (pasAlta) {
+      partes.push(
+        '<b>Ojo:</b> el ERP reescribi&oacute; movimientos de d&iacute;as que ya pasaron por ' +
+        '<b>' + num(u.pas) + ' M netos</b>' +
+        (u.pbruto != null ? ' (' + fmt(u.pbruto) + ' M brutos)' : '') +
+        '. Lo normal es &plusmn;350 M: alguien borr&oacute; o reimput&oacute; en serio. ' +
+        'Revisar antes de leer el delta como plata nueva.');
+    } else if (u.pbruto != null && u.pbruto > 0) {
+      partes.push(
+        'Del movimiento total, la reescritura del pasado (reclasificaciones, previsiones ' +
+        'que se vuelven facturas) sum&oacute; <b>' + num(u.pas) + ' M netos</b> sobre ' +
+        fmt(u.pbruto) + ' M brutos &mdash; dentro del ciclo normal del ERP.');
+    }
   }
   if (a.fallas > 0) {
     partes.push('Hay <b>' + a.fallas + ' control' + (a.fallas > 1 ? 'es' : '') +

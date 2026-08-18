@@ -72,14 +72,17 @@ console.log('fotos no comparables :', r.nocomp);
 console.log('KPIs                 :', r.kpis);
 
 if (!r.visible) fallas.push('el bloque de auditoria no se pinto (mirar los logs de la edge function)');
-if (r.piezas.length !== 4) fallas.push('se esperaban 4 piezas y hay ' + r.piezas.length);
+// 18/08: la quinta pieza es "Pasado reescrito" (endpoint v13). Con un endpoint
+// viejo pueden ser 4 y no es falla del front.
+if (r.piezas.length !== 4 && r.piezas.length !== 5)
+  fallas.push('se esperaban 4 o 5 piezas y hay ' + r.piezas.length);
 
 // El control que importa: las piezas tienen que sumar el neto.
 // OJO: el tablero usa el menos tipografico U+2212, no el guion ASCII. Un
 // parser que solo contemple '-' se come el signo y todo parece no cerrar.
 const n = (s) => Number(String(s).replace(/−/g, '-')
   .replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
-if (r.piezas.length === 4) {
+if (r.piezas.length >= 4) {
   const [neto, altas, bajas, modif] = r.piezas.map((p) => n(p.num));
   const suma = altas + bajas + modif;
   const cierra = Math.abs(suma - neto) <= 0.3;
