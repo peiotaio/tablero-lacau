@@ -297,25 +297,30 @@
 
 <style>
   .capas{margin:26px 0 0}
-  .capas-sel{display:inline-flex;border:1px solid var(--verde-medio);border-radius:3px;overflow:hidden}
-  .capa-b{font-family:Lato,sans-serif;font-size:9.5pt;letter-spacing:.02em;padding:7px 16px;
-          border:0;border-right:1px solid var(--verde-medio);background:var(--crema);
-          color:var(--verde-medio);cursor:pointer}
-  .capa-b:last-child{border-right:0}
+  .capas-tit{font-size:9pt;letter-spacing:.08em;text-transform:uppercase;color:var(--gris-claro);margin-bottom:8px}
+  .capas-sel{display:flex;gap:10px;flex-wrap:wrap}
+  .capa-b{flex:1 1 200px;max-width:270px;font-family:Lato,sans-serif;text-align:left;
+          padding:12px 14px;border:1px solid var(--verde-medio);border-radius:6px;
+          background:var(--crema);color:var(--verde-medio);cursor:pointer;
+          transition:background .15s}
+  .capa-b b{display:block;font-size:10.5pt;margin-bottom:4px}
+  .capa-b span{display:block;font-size:8.5pt;line-height:1.4;opacity:.85}
   .capa-b:hover{background:var(--verde-papel)}
-  .capa-b.on{background:var(--verde-medio);color:#fff}
-  .capa-nota{font-size:9pt;color:var(--gris-claro);margin-top:8px;max-width:80ch;line-height:1.5}
-  @media(max-width:820px){.capas-sel{flex-direction:column;width:100%}
-    .capa-b{border-right:0;border-bottom:1px solid var(--verde-medio);text-align:left}
-    .capa-b:last-child{border-bottom:0}}
+  .capa-b.on{background:var(--verde-medio);color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+  .capa-nota{font-size:9pt;color:var(--gris-claro);margin-top:10px;max-width:80ch;line-height:1.5}
+  .capa-adic{font-size:8.5pt;color:var(--gris-claro);margin-top:6px;max-width:80ch;line-height:1.5;font-style:italic}
+  @media(max-width:820px){.capa-b{max-width:none;flex:1 1 100%}}
 </style>
 <div class="capas">
+  <div class="capas-tit">¿Qué incluye el número? Elegí una lectura — cambia todos los cálculos del tablero</div>
   <div class="capas-sel">
-    <button class="capa-b on" data-capa="todo">Todo</button>
-    <button class="capa-b" data-capa="sinstock">Sin stock de granos</button>
-    <button class="capa-b" data-capa="comprometido">Solo comprometido</button>
+    <button class="capa-b on" data-capa="todo"><b>Todo</b><span>Lo que Albor proyecta, con el stock de granos valuado adentro. El número más completo — y el que más depende del dólar tipeado a mano.</span></button>
+    <button class="capa-b" data-capa="sinstock"><b>Sin stock de granos</b><span>Saca la valuación de la mercadería. Lo que queda no depende de a cuánto se venda el grano.</span></button>
+    <button class="capa-b" data-capa="comprometido"><b>Solo comprometido</b><span>Solo lo que tiene un tercero y un papel atrás (sin rubros 04 y 09). La lectura más parecida a la de finanzas.</span></button>
   </div>
   <div class="capa-nota" id="capa-nota"></div>
+  <div class="capa-adic">Los rubros 12, 16 y 17 (labores de terceros y fletes de cereales) van por fuera del cash flow
+    como «adicionales» — criterio confirmado por administración el 18/08 — y no entran en ningún número de este tablero.</div>
 </div>
 
   <div class="acum" id="acum">
@@ -508,6 +513,15 @@
   <p>Del dato crudo: los movimientos de Albor guardados en la base, sin ning&uacute;n retoque a mano.
   Son los mismos datos que alimentan el Excel &laquo;Cash Flow Lacau - Historico.xlsx&raquo;: el Excel
   es el archivo hist&oacute;rico de trabajo, esta p&aacute;gina es el tablero para mirarlo.</p>
+  <h4>Las tres lecturas (los botones de arriba)</h4>
+  <p>El acumulado no es UN n&uacute;mero: depende de qu&eacute; se incluya. <b>Todo</b> es lo que
+  Albor proyecta, con el stock de granos valuado adentro (a un d&oacute;lar tipeado a mano).
+  <b>Sin stock de granos</b> saca esa valuaci&oacute;n: lo que queda no depende del precio del grano.
+  <b>Solo comprometido</b> deja &uacute;nicamente lo que tiene un tercero y un papel atr&aacute;s
+  (facturas, contratos, &oacute;rdenes) &mdash; es la lectura m&aacute;s parecida a la de finanzas.
+  Las tres son correctas; cambia la pregunta que responden. Aparte, los rubros 12, 16 y 17
+  (labores de terceros y fletes de cereales) van por fuera del cash flow como &laquo;adicionales&raquo;
+  y no entran en ninguna de las tres.</p>
   <h4>Los supuestos</h4>
   <p>El bot&oacute;n &laquo;Ajustar supuestos&raquo; permite jugar escenarios: mover las fechas de
   corte, corregir la cosecha, fijar un d&oacute;lar o apagar rubros. Cuando hay supuestos tocados,
