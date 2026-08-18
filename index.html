@@ -669,6 +669,19 @@ $('selFecha').value = DEF.f2;
 let capa = 'todo';
 // Hoy en fecha argentina (UTC-3), formato ISO, para la capa "desde hoy".
 const HOY = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+
+// ARRANQUE (18/08 tarde, pedido de la familia): el numero fino que ellos leen
+// es el Grand Total x Importe acumulado de la pantalla de administracion, cuyo
+// export arranca el dia de la bajada con el saldo inicial que Albor regenera.
+// Ese arranque NO se puede calcular desde nuestro export (01/06): el saldo
+// colapsa lo ya liquidado contra el banco real. Vive en la tabla cf_arranque
+// (una fila por mes, con fuente) y viaja en D.arr. Verificado 18/08: arranque
+// + nuestros "del mes" reproduce su columna al peso (sep->ene exacto).
+// Si D.arr no existe o quedo viejo (de otro mes), se cae a la regla sin
+// arranque y la nota lo avisa: mejor un numero honesto que uno inventado.
+const K_HOY_MES = HOY.slice(0, 7);
+const ARR = (D.arr && D.arr.mes === K_HOY_MES) ? D.arr : null;
+const ARR_VIEJO = (D.arr && D.arr.mes !== K_HOY_MES) ? D.arr : null;
 // Rubros 04 (otros ingresos, donde vive TODO el stock de granos) y 09 (otros
 // egresos): la capa presupuestaria, numeros que pone la empresa sin tercero ni
 // papel atras. Se resuelve una sola vez, por indice, porque el filtro corre en
@@ -719,14 +732,29 @@ document.addEventListener('click', ev => {
   pintar();
 });
 
-function balance(i, hasta, cos, fx) {
-  if (hasta > D.meta[i].fmax) return null;
+// Suma cruda de una foto hasta una fecha, en PESOS, con los filtros vigentes
+// (chips y capa). Es la pieza de abajo de balance(): no conoce el arranque.
+function balanceCrudo(i, hasta, fx) {
   let t = 0;
   for (const f of D.filas) {
     if (f[0] !== i || f[2] > hasta || off.has(f[1]) || fuera(f)) continue;
     t += (f[3] === 1 && fx > 0) ? f[5] * fx : f[4];
   }
-  return t / 1e6 + cos;
+  return t;
+}
+// balance() con la VISION DE LA FAMILIA (18/08): si hay arranque cargado, el
+// saldo a una fecha F = arranque (acumulado a fin del mes en curso, pantalla
+// admin) + nuestros flujos entre fin de mes y F. Algebraicamente:
+//   arranque + S(F) - S(finDeMes)   donde S = suma cruda desde el 01/06.
+// Los deltas entre fotos no cambian (el arranque es el mismo para todas), asi
+// que el comparador sigue midiendo lo mismo; lo que cambia es el NIVEL, que
+// ahora coincide con el numero que la familia lee en Albor.
+// La capa "desde hoy" no usa arranque: su gracia es mostrar solo lo que viene.
+function balance(i, hasta, cos, fx) {
+  if (hasta > D.meta[i].fmax) return null;
+  const s = balanceCrudo(i, hasta, fx);
+  if (!ARR || capa === 'desdehoy') return s / 1e6 + cos;
+  return (ARR.acum + s - balanceCrudo(i, finDeMes(K_HOY_MES), fx)) / 1e6 + cos;
 }
 function saldoRubro(i, r, hasta, fx) {
   if (hasta > D.meta[i].fmax) return null;
@@ -739,10 +767,10 @@ function saldoRubro(i, r, hasta, fx) {
   return hay ? t / 1e6 : (D.filas.some(f => f[0] === i && f[1] === r) ? 0 : null);
 }
 // ---------------------------------------------------------------------------
-// Acumulado mes a mes hasta la fecha objetivo, con la regla del 18/08: arranca
-// en el mes en curso (ver mesesAcum). OJO: por eso el ultimo mes YA NO es el
-// numero grande de arriba, que acumula desde el inicio del export (01/06) y es
-// el ancla contra el cubo de Pablo. Son dos ventanas distintas, a proposito.
+// Acumulado mes a mes hasta la fecha objetivo, con la vision de la familia
+// (18/08): el mes en curso vale el arranque de la pantalla admin (cf_arranque)
+// y cada mes siguiente suma su neto. balance() usa la misma cuenta, asi que la
+// fila de la fecha objetivo vuelve a ser el numero grande de arriba.
 // ---------------------------------------------------------------------------
 const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const nomMes = k => MES[+k.slice(5, 7) - 1] + " '" + k.slice(2, 4);
@@ -763,10 +791,14 @@ function mesesAcum(hasta, cos, fx, kIni) {
     const k = f[2].slice(0, 7);
     por.set(k, (por.get(k) || 0) + ((f[3] === 1 && fx > 0) ? f[5] * fx : f[4]));
   }
-  let acc = 0;
+  let acc = 0, seeded = false;
   return [...por.keys()].sort().map(k => {
     if (kIni && k < kIni) return { k, del: por.get(k) / 1e6, acum: null };
-    acc += por.get(k);
+    // El mes en curso arranca en el valor de la pantalla admin (que ya trae su
+    // propio agosto adentro, saldo inicial incluido); de ahi en mas cada mes
+    // suma su neto. Sin arranque cargado, el mes en curso acumula desde cero.
+    if (!seeded && ARR && capa !== 'desdehoy' && k === kIni) { acc = ARR.acum; seeded = true; }
+    else acc += por.get(k);
     return { k, del: por.get(k) / 1e6, acum: acc / 1e6 + cos };
   });
 }
@@ -815,26 +847,26 @@ function pintarAcum(objetivo, cos, fx) {
   }).join('');
 
   // Si la fecha objetivo no cae a fin de mes, ese mes queda cortado al medio.
-  // La fila exacta se calcula con la MISMA ventana (desde el mes en curso):
-  // balance() suma desde el arranque del export, asi que se le resta la cola
-  // de los meses previos que quedaron fuera de la ventana.
+  // balance() ya habla el mismo idioma que esta tabla (arranque incluido), asi
+  // que la fila exacta sale directo.
   const cortado = objetivo !== finDeMes(kObj);
   if (cortado) {
     const b = balance(D.meta.length - 1, objetivo, cos, fx);
-    const cola = ms.filter(m => m.acum === null).reduce((t, m) => t + m.del, 0);
-    const bv = b === null ? null : b - cola;
     filas += `<tr class="finrow"><th>al ${dm(objetivo)}</th><td class="num tenue">&mdash;</td>` +
-      `<td class="num ${cls(bv)}">${fmt(bv)}</td></tr>`;
+      `<td class="num ${cls(b)}">${fmt(b)}</td></tr>`;
   }
   $('acum-tabla').innerHTML = filas;
   $('acum-nota').innerHTML =
-    'Regla del 18/08: el acumulado arranca en el <b>mes en curso</b> y cada mes suma su ' +
-    'neto al acumulado del anterior &mdash; igual que la columna &laquo;Importe acumulado&raquo; ' +
-    'de la pantalla de Albor. Los meses ya transcurridos van atenuados, solo informativos. ' +
-    'Ojo: el n&uacute;mero grande de arriba acumula desde el inicio del export (01/06, el cubo ' +
-    'de Pablo), por eso no coincide con esta tabla: son dos ventanas distintas. Y el saldo ' +
-    'inicial que Albor regenera al d&iacute;a de la bajada no existe en este export &mdash; esa ' +
-    'diferencia con la pantalla de administraci&oacute;n es estructural (conciliaci&oacute;n del 14/08). ' +
+    (ARR
+      ? 'La columna acumulado es la misma cuenta de la pantalla de Albor: el mes en curso ' +
+        'vale lo que dice esa pantalla (<b>' + fmt(ARR.acum / 1e6) + ' M</b>, con el saldo ' +
+        'inicial adentro) y cada mes siguiente le suma su neto. La fila verde al 30/11 es ' +
+        'el mismo n&uacute;mero grande de arriba. Arranque cargado de: ' + ARR.fuente + '. ' +
+        'Los meses ya transcurridos van atenuados, solo informativos. '
+      : 'Sin arranque cargado para ' + nomMes(kHoy + '-01') + ': el acumulado arranca en el ' +
+        'mes en curso desde cero, sin el saldo inicial de la pantalla de Albor' +
+        (ARR_VIEJO ? ' (hay uno cargado pero es de otro mes: hay que actualizar cf_arranque)' : '') +
+        '. Cada mes suma su neto al anterior. ') +
     'En millones de pesos.';
 }
 
