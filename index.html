@@ -680,6 +680,7 @@ const HOY = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 // Si D.arr no existe o quedo viejo (de otro mes), se cae a la regla sin
 // arranque y la nota lo avisa: mejor un numero honesto que uno inventado.
 const K_HOY_MES = HOY.slice(0, 7);
+const INI_MES = K_HOY_MES + '-01';
 const ARR = (D.arr && D.arr.mes === K_HOY_MES) ? D.arr : null;
 const ARR_VIEJO = (D.arr && D.arr.mes !== K_HOY_MES) ? D.arr : null;
 // Rubros 04 (otros ingresos, donde vive TODO el stock de granos) y 09 (otros
@@ -756,11 +757,16 @@ function balance(i, hasta, cos, fx) {
   if (!ARR || capa === 'desdehoy') return s / 1e6 + cos;
   return (ARR.acum + s - balanceCrudo(i, finDeMes(K_HOY_MES), fx)) / 1e6 + cos;
 }
+// La misma regla en TODAS las filas (18/08): cada rubro acumula desde el 1°
+// del mes en curso hasta la fecha objetivo — igual que la columna de la
+// pantalla de Albor. El saldo inicial que Albor regenera al dia vive solo en
+// el TOTAL (cf_arranque): aca BANCOS muestra sus movimientos del periodo, sin
+// ese saldo. La capa "desde hoy" recorta ademas con fuera(), como siempre.
 function saldoRubro(i, r, hasta, fx) {
   if (hasta > D.meta[i].fmax) return null;
   let t = 0, hay = false;
   for (const f of D.filas) {
-    if (f[0] !== i || f[1] !== r || f[2] > hasta || fuera(f)) continue;
+    if (f[0] !== i || f[1] !== r || f[2] > hasta || f[2] < INI_MES || fuera(f)) continue;
     hay = true;
     t += (f[3] === 1 && fx > 0) ? f[5] * fx : f[4];
   }
@@ -959,9 +965,10 @@ function pintar() {
     'las del robot, el 01/06).';
 
   // --- evolucion por rubro
-  $('sub-rubro').textContent = 'El balance proyectado al ' + dm(f2) +
-    ' de cada rubro, visto desde cada foto. La misma celda, a trav\u00e9s del tiempo: ' +
-    'se lee hacia la derecha. En millones de pesos.';
+  $('sub-rubro').textContent = 'El acumulado de cada rubro al ' + dm(f2) +
+    ' (desde el 1\u00b0 del mes en curso, la misma cuenta de la pantalla de Albor), ' +
+    'visto desde cada foto. La misma celda, a trav\u00e9s del tiempo: se lee hacia la ' +
+    'derecha. El saldo inicial vive solo en el total de la portada. En millones de pesos.';
   let hh = '<tr><th>Rubro</th>';
   D.meta.forEach((mt, i) => {
     const corte = i > 0 && D.meta[i-1].manual && !mt.manual;
