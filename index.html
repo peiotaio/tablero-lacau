@@ -317,7 +317,8 @@
   <div class="capas-sel">
     <button class="capa-b on" data-capa="todo"><b>Todo</b><span>Lo que Albor proyecta, con el stock de granos valuado adentro. El número más completo — y el que más depende del dólar tipeado a mano.</span></button>
     <button class="capa-b" data-capa="sinstock"><b>Sin stock de granos</b><span>Saca la valuación de la mercadería. Lo que queda no depende de a cuánto se venda el grano.</span></button>
-    <button class="capa-b" data-capa="comprometido"><b>Solo comprometido</b><span>Solo lo que tiene un tercero y un papel atrás (sin rubros 04 y 09). La lectura más parecida a la de finanzas.</span></button>
+    <!-- 18/08 tarde: "Solo comprometido" se sacó a pedido de la familia. La
+         lógica queda en fuera() por si vuelve; solo desapareció el botón. -->
     <button class="capa-b" data-capa="desdehoy"><b>Desde hoy</b><span>Solo lo que queda por delante: de hoy a la fecha proyectada, sin lo ya transcurrido. La ventana con la que trabaja administración.</span></button>
   </div>
   <div class="capa-nota" id="capa-nota"></div>
@@ -738,15 +739,22 @@ function saldoRubro(i, r, hasta, fx) {
   return hay ? t / 1e6 : (D.filas.some(f => f[0] === i && f[1] === r) ? 0 : null);
 }
 // ---------------------------------------------------------------------------
-// Acumulado mes a mes hasta la fecha objetivo. Es la medida «Importe acumulado»
-// de Albor, sin vueltas: se suma el neto de cada mes al mes anterior. El ultimo
-// mes tiene que dar exactamente el numero grande de arriba — es el mismo
-// calculo que balance(), partido por mes.
+// Acumulado mes a mes hasta la fecha objetivo, con la regla del 18/08: arranca
+// en el mes en curso (ver mesesAcum). OJO: por eso el ultimo mes YA NO es el
+// numero grande de arriba, que acumula desde el inicio del export (01/06) y es
+// el ancla contra el cubo de Pablo. Son dos ventanas distintas, a proposito.
 // ---------------------------------------------------------------------------
 const MES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const nomMes = k => MES[+k.slice(5, 7) - 1] + " '" + k.slice(2, 4);
 
-function mesesAcum(hasta, cos, fx) {
+// REGLA DEL 18/08 (pedido de la familia): el acumulado arranca en el MES EN
+// CURSO, como la columna «Importe acumulado» de la pantalla de Albor que miran
+// ellos (cuyo export arranca el día de la bajada). Cada mes suma su neto al
+// acumulado del mes anterior — tal cual. Los meses ya transcurridos se
+// muestran solo como neto del mes, sin acumulado: están fuera de la ventana.
+// (kIni = 'AAAA-MM' del primer mes que acumula; sin kIni, acumula desde el
+// primer dato, que era la regla vieja.)
+function mesesAcum(hasta, cos, fx, kIni) {
   const i = D.meta.length - 1;
   if (hasta > D.meta[i].fmax) return [];
   const por = new Map();
@@ -757,6 +765,7 @@ function mesesAcum(hasta, cos, fx) {
   }
   let acc = 0;
   return [...por.keys()].sort().map(k => {
+    if (kIni && k < kIni) return { k, del: por.get(k) / 1e6, acum: null };
     acc += por.get(k);
     return { k, del: por.get(k) / 1e6, acum: acc / 1e6 + cos };
   });
@@ -773,7 +782,8 @@ function pintarAcum(objetivo, cos, fx) {
   // que vienen despues, atenuados: mas alla del cierre de campaña la
   // proyeccion es de baja confianza por diseño.
   const fmax = D.meta[D.meta.length - 1].fmax;
-  const ms = mesesAcum(fmax > objetivo ? fmax : objetivo, cos, fx);
+  const kHoy = hoyAR().toISOString().slice(0, 7);
+  const ms = mesesAcum(fmax > objetivo ? fmax : objetivo, cos, fx, kHoy);
   if (!ms.length) {
     $('acum-rot').innerHTML = 'Acumulado';
     $('acum-linea').innerHTML = '<span class="mes solo"><span class="mn">s/d</span>' +
@@ -781,7 +791,6 @@ function pintarAcum(objetivo, cos, fx) {
     $('acum-tabla').innerHTML = ''; $('acum-nota').innerHTML = ''; return;
   }
   const kObj = objetivo.slice(0, 7);
-  const kHoy = hoyAR().toISOString().slice(0, 7);
   const cur = ms.find(m => m.k === kHoy);
 
   // --- la barra: un solo mes, el que esta en transito
@@ -793,30 +802,40 @@ function pintarAcum(objetivo, cos, fx) {
     `<span class="mv ${cls(c.acum)}">${fmt(c.acum)}</span>` +
     `<span class="mg">acumulado al ${dm(finDeMes(c.k))}, en millones</span></span>`;
 
-  // --- la tabla: todos los meses que haya dato
+  // --- la tabla: todos los meses que haya dato. Los anteriores al mes en
+  //     curso van atenuados y sin acumulado: la ventana arranca este mes.
   let filas = ms.map(m => {
     const post = m.k > kObj;
-    return `<tr class="${m.k === kObj ? 'finrow' : ''}${post ? ' tenuerow' : ''}` +
+    const pre = m.acum === null;
+    return `<tr class="${m.k === kObj ? 'finrow' : ''}${post || pre ? ' tenuerow' : ''}` +
       `${m.k === kHoy ? ' currow' : ''}">` +
       `<th>${nomMes(m.k)}${m.k === kHoy ? '<span class="tag">en curso</span>' : ''}</th>` +
       `<td class="num delta ${cls(m.del)}">${fmt(m.del, true)}</td>` +
-      `<td class="num ${cls(m.acum)}">${fmt(m.acum)}</td></tr>`;
+      `<td class="num ${pre ? 'tenue' : cls(m.acum)}">${pre ? '&mdash;' : fmt(m.acum)}</td></tr>`;
   }).join('');
 
-  // Si la fecha objetivo no cae a fin de mes, ese mes queda cortado al medio y
-  // la fila no coincidiria con el numero de arriba. Se agrega la fila exacta.
+  // Si la fecha objetivo no cae a fin de mes, ese mes queda cortado al medio.
+  // La fila exacta se calcula con la MISMA ventana (desde el mes en curso):
+  // balance() suma desde el arranque del export, asi que se le resta la cola
+  // de los meses previos que quedaron fuera de la ventana.
   const cortado = objetivo !== finDeMes(kObj);
   if (cortado) {
     const b = balance(D.meta.length - 1, objetivo, cos, fx);
+    const cola = ms.filter(m => m.acum === null).reduce((t, m) => t + m.del, 0);
+    const bv = b === null ? null : b - cola;
     filas += `<tr class="finrow"><th>al ${dm(objetivo)}</th><td class="num tenue">&mdash;</td>` +
-      `<td class="num ${cls(b)}">${fmt(b)}</td></tr>`;
+      `<td class="num ${cls(bv)}">${fmt(bv)}</td></tr>`;
   }
   $('acum-tabla').innerHTML = filas;
   $('acum-nota').innerHTML =
-    'Cada mes suma su neto al mes anterior. La fila verde es el acumulado a la fecha ' +
-    'objetivo (' + dm(objetivo) + ') &mdash; el mismo n&uacute;mero grande de arriba. Los meses ' +
-    'posteriores van atenuados: pasado el cierre de campa&ntilde;a la proyecci&oacute;n es de ' +
-    'baja confianza. En millones de pesos.';
+    'Regla del 18/08: el acumulado arranca en el <b>mes en curso</b> y cada mes suma su ' +
+    'neto al acumulado del anterior &mdash; igual que la columna &laquo;Importe acumulado&raquo; ' +
+    'de la pantalla de Albor. Los meses ya transcurridos van atenuados, solo informativos. ' +
+    'Ojo: el n&uacute;mero grande de arriba acumula desde el inicio del export (01/06, el cubo ' +
+    'de Pablo), por eso no coincide con esta tabla: son dos ventanas distintas. Y el saldo ' +
+    'inicial que Albor regenera al d&iacute;a de la bajada no existe en este export &mdash; esa ' +
+    'diferencia con la pantalla de administraci&oacute;n es estructural (conciliaci&oacute;n del 14/08). ' +
+    'En millones de pesos.';
 }
 
 function spark(vals) {
