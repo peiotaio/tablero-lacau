@@ -317,6 +317,7 @@
     <button class="capa-b on" data-capa="todo"><b>Todo</b><span>Lo que Albor proyecta, con el stock de granos valuado adentro. El número más completo — y el que más depende del dólar tipeado a mano.</span></button>
     <button class="capa-b" data-capa="sinstock"><b>Sin stock de granos</b><span>Saca la valuación de la mercadería. Lo que queda no depende de a cuánto se venda el grano.</span></button>
     <button class="capa-b" data-capa="comprometido"><b>Solo comprometido</b><span>Solo lo que tiene un tercero y un papel atrás (sin rubros 04 y 09). La lectura más parecida a la de finanzas.</span></button>
+    <button class="capa-b" data-capa="desdehoy"><b>Desde hoy</b><span>Solo lo que queda por delante: de hoy a la fecha proyectada, sin lo ya transcurrido. La ventana con la que trabaja administración.</span></button>
   </div>
   <div class="capa-nota" id="capa-nota"></div>
   <div class="capa-adic">Los rubros 12, 16 y 17 (labores de terceros y fletes de cereales) van por fuera del cash flow
@@ -513,15 +514,19 @@
   <p>Del dato crudo: los movimientos de Albor guardados en la base, sin ning&uacute;n retoque a mano.
   Son los mismos datos que alimentan el Excel &laquo;Cash Flow Lacau - Historico.xlsx&raquo;: el Excel
   es el archivo hist&oacute;rico de trabajo, esta p&aacute;gina es el tablero para mirarlo.</p>
-  <h4>Las tres lecturas (los botones de arriba)</h4>
+  <h4>Las lecturas (los botones de arriba)</h4>
   <p>El acumulado no es UN n&uacute;mero: depende de qu&eacute; se incluya. <b>Todo</b> es lo que
   Albor proyecta, con el stock de granos valuado adentro (a un d&oacute;lar tipeado a mano).
   <b>Sin stock de granos</b> saca esa valuaci&oacute;n: lo que queda no depende del precio del grano.
   <b>Solo comprometido</b> deja &uacute;nicamente lo que tiene un tercero y un papel atr&aacute;s
   (facturas, contratos, &oacute;rdenes) &mdash; es la lectura m&aacute;s parecida a la de finanzas.
-  Las tres son correctas; cambia la pregunta que responden. Aparte, los rubros 12, 16 y 17
+  <b>Desde hoy</b> corta el pasado: solo los movimientos de hoy en adelante, la misma ventana
+  con la que trabaja administraci&oacute;n en su export &mdash; con una salvedad: a ellos Albor
+  les suma adem&aacute;s el saldo que ya est&aacute; en los bancos al d&iacute;a de inicio, y ese
+  dato ac&aacute; no existe, as&iacute; que los n&uacute;meros no coinciden peso a peso.
+  Todas son correctas; cambia la pregunta que responden. Aparte, los rubros 12, 16 y 17
   (labores de terceros y fletes de cereales) van por fuera del cash flow como &laquo;adicionales&raquo;
-  y no entran en ninguna de las tres.</p>
+  y no entran en ninguna de las cuatro.</p>
   <h4>Los supuestos</h4>
   <p>El bot&oacute;n &laquo;Ajustar supuestos&raquo; permite jugar escenarios: mover las fechas de
   corte, corregir la cosecha, fijar un d&oacute;lar o apagar rubros. Cuando hay supuestos tocados,
@@ -630,6 +635,8 @@ $('selFecha').value = DEF.f2;
 // Una de las causas era esta — su numero y el nuestro incluian cosas distintas
 // y nadie lo estaba diciendo en pantalla.
 let capa = 'todo';
+// Hoy en fecha argentina (UTC-3), formato ISO, para la capa "desde hoy".
+const HOY = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 // Rubros 04 (otros ingresos, donde vive TODO el stock de granos) y 09 (otros
 // egresos): la capa presupuestaria, numeros que pone la empresa sin tercero ni
 // papel atras. Se resuelve una sola vez, por indice, porque el filtro corre en
@@ -640,6 +647,11 @@ function fuera(f) {
   // En comprometido el stock ya cae adentro del 04, pero se chequea igual por si
   // algun dia aparece stock fuera del 04 (el check 11 de la base avisa de eso).
   if (capa === 'comprometido') return f[6] === 1 || PRESU.has(f[1]);
+  // "desdehoy": la lectura de administracion — solo lo que queda por delante.
+  // Se cae tambien nuestro SALDO INICIAL de bancos (fechado 01/06). A ellos
+  // Albor les genera uno nuevo al dia de inicio de SU export; aca ese dato no
+  // existe — por eso este numero no coincide peso a peso con esa pantalla.
+  if (capa === 'desdehoy') return f[2] < HOY;
   return false;
 }
 function pintarCapa(hasta, cos, fx) {
@@ -658,7 +670,12 @@ function pintarCapa(hasta, cos, fx) {
         ' M al ' + dm(hasta) + ', a un tipo de cambio que alguien tipe&oacute; a mano en Albor.'
     : capa === 'sinstock'
       ? 'Sin los ' + fmt(st) + ' M de stock de granos. Es lo que no depende de valuar mercader&iacute;a.'
-      : 'Solo lo comprometido: sin los rubros 04 y 09. Es lo que tiene un tercero y un papel atr&aacute;s — la capa m&aacute;s cercana al n&uacute;mero de finanzas.';
+    : capa === 'comprometido'
+      ? 'Solo lo comprometido: sin los rubros 04 y 09. Es lo que tiene un tercero y un papel atr&aacute;s — la capa m&aacute;s cercana al n&uacute;mero de finanzas.'
+      : 'Solo los movimientos desde hoy (' + dm(HOY) + ') hasta el ' + dm(hasta) +
+        ' — la ventana con la que trabaja administraci&oacute;n. Ojo: ac&aacute; no est&aacute; ' +
+        'la plata que ya hay en los bancos (a administraci&oacute;n Albor se la suma al armar ' +
+        'su export), as&iacute; que no coincide peso a peso con esa pantalla.';
 }
 document.addEventListener('click', ev => {
   const b = ev.target.closest('.capa-b');
