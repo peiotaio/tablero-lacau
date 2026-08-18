@@ -273,6 +273,7 @@
     <h1>Cash Flow &middot; Proyecci&oacute;n</h1>
     <p class="bajada">C&oacute;mo viene la caja proyectada de la empresa, foto a foto.</p>
     <div class="botonera">
+      <button class="btn" id="btn-res">Resumen</button>
       <button class="btn" id="btn-ayuda">&iquest;C&oacute;mo se lee?</button>
       <button class="btn" id="btn-tc">Tipo de cambio</button>
       <button class="btn ocre" id="btn-sup">Ajustar supuestos</button>
@@ -531,6 +532,36 @@
   <p>El bot&oacute;n &laquo;Ajustar supuestos&raquo; permite jugar escenarios: mover las fechas de
   corte, corregir la cosecha, fijar un d&oacute;lar o apagar rubros. Cuando hay supuestos tocados,
   aparece un aviso naranja bien visible: lo que se ve es un escenario, no el n&uacute;mero oficial.</p>
+</div>
+
+<div class="modal" id="resm">
+  <button class="cerrar" id="resm-x">&#10005;</button>
+  <h3>Resumen: qu&eacute; muestra cada cosa</h3>
+  <p><b>El tablero entero</b> &mdash; la caja proyectada de Lacau y C&iacute;a: cu&aacute;nta plata
+  entra y sale seg&uacute;n lo cargado en Albor, acumulada hasta una fecha. Un robot baja la foto
+  todas las noches; nada se toca a mano.</p>
+  <p><b>Los 4 botones de lectura</b> &mdash; eligen qu&eacute; incluir en el n&uacute;mero:
+  <i>Todo</i> (con el stock de granos valuado), <i>Sin stock</i>, <i>Solo comprometido</i>
+  (con papel y tercero atr&aacute;s) y <i>Desde hoy</i> (la ventana de administraci&oacute;n).
+  Mismo dato, cuatro preguntas distintas.</p>
+  <p><b>&Uacute;ltima fecha bajada</b> &mdash; cu&aacute;ndo entr&oacute; la &uacute;ltima foto.
+  En rojo = foto vieja o con problemas.</p>
+  <p><b>Acumulado hasta el 30/11</b> &mdash; el saldo proyectado al cierre de campa&ntilde;a de
+  ventas. &laquo;Ver mes a mes&raquo; lo desarma por mes.</p>
+  <p><b>Las pr&oacute;ximas fechas</b> &mdash; el saldo proyectado a las fechas que mueven la
+  caja: viernes (pago CO), d&iacute;a 10 (arrendamientos), fin de mes.</p>
+  <p><b>La matriz</b> &mdash; cada fila es una bajada, cada columna una fecha objetivo. Leyendo
+  hacia abajo se ve c&oacute;mo fue cambiando la expectativa d&iacute;a a d&iacute;a.</p>
+  <p><b>Comparador de fotos</b> &mdash; qu&eacute; cambi&oacute; entre dos bajadas, siempre
+  mirando la misma fecha. Es la herramienta para explicar un salto.</p>
+  <p><b>Evoluci&oacute;n por rubro</b> &mdash; qu&eacute; rubro caus&oacute; cada movimiento
+  del balance.</p>
+  <p><b>Bit&aacute;cora de subidas</b> &mdash; qu&eacute; d&iacute;as entr&oacute; la bajada y
+  cu&aacute;les no (en rojo).</p>
+  <p><b>Ajustar supuestos</b> &mdash; escenarios de prueba (otro d&oacute;lar, otra cosecha).
+  Con el aviso naranja prendido, lo que se ve NO es el n&uacute;mero oficial.</p>
+  <p><b>Lo que NO est&aacute; ac&aacute;</b> &mdash; los rubros 12, 16 y 17 (van por fuera como
+  &laquo;adicionales&raquo; de administraci&oacute;n) y el financiero de Ager, que corre aparte.</p>
 </div>
 
 <div class="modal" id="bitm">
@@ -1158,7 +1189,9 @@ $('reset').onclick = resetear; $('aviso-reset').onclick = resetear;
 // drawer + modales
 const abrir  = el => { $('velo').classList.add('on'); el.classList.add('on'); };
 const cerrar = () => { $('velo').classList.remove('on');
-  ['drawer','ayuda','tcm','bitm'].forEach(id => $(id).classList.remove('on')); };
+  ['drawer','ayuda','tcm','bitm','resm'].forEach(id => $(id).classList.remove('on')); };
+$('btn-res').onclick = () => abrir($('resm'));
+$('resm-x').onclick = () => cerrar();
 $('btn-tc').onclick = () => abrir($('tcm'));
 $('tcm-x').onclick = () => cerrar();
 $('btn-sup').onclick = () => abrir($('drawer'));
