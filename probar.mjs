@@ -20,7 +20,14 @@
 import { readFileSync } from 'node:fs';
 
 const PW = '/Users/peiolacau/Desktop/albor-cashflow-bot/node_modules/playwright/index.mjs';
-const KEY = process.env.TABLERO_KEY ?? 'sihXvUvqYWvTwdTdmeqfV3wb9nrEIkCV';
+// 19/08/2026: la clave NO vuelve a este repo. Es publico (GitHub Pages lo
+// necesita) y el valor viejo quedo servido en claro por Pages y por
+// raw.githubusercontent.com. Sin default: si falta la variable, aborta.
+const KEY = process.env.TABLERO_KEY;
+if (!KEY) {
+  console.error('Falta TABLERO_KEY. Corre:  TABLERO_KEY=... node probar.mjs');
+  process.exit(1);
+}
 
 const { chromium } = await import(PW).catch(() => {
   console.error('No encuentro Playwright en ' + PW + '\nCorré `npm install` en albor-cashflow-bot.');
