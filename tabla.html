@@ -1,0 +1,449 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cash Flow · la tabla que cierra</title>
+
+<!--
+  tabla.html v3 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
+
+  DÓNDE VA: repo peiotaio/tablero-lacau, al lado del index.html.
+  El link viejo NO se toca: este abre en /tabla.html#k=<clave>
+  (Para probarlo local alcanza con abrir el archivo y ponerle el #k= al final.)
+
+  LA CLAVE nunca se escribe acá: se lee del hash, que el navegador no manda al servidor.
+
+  TODAS las fechas y el horizonte se leen del dato. Nada hardcodeado: el día que el
+  negocio mueva una fecha, se nota solo.
+
+  v3 (31/08) — dos vistas:
+    · HISTÓRICO: la de siempre (flujo entre dos fechas, capas, cola vencida).
+    · COMO GIORGI: la matriz rubro × mes desde una fecha elegida (default hoy) hasta el
+      horizonte, reconstruida con la regla de arrastre validada contra 11 planillas.
+      Bancos: de la bajada B del bot si existe; si no, sin saldo inicial y rotulado.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --verde:#14452f; --verde-medio:#1b5e3f; --verde-papel:#e8ede7;
+    --crema:#fcfbf8; --banda:#f3f1ea; --linea:#e4e1d8;
+    --tinta:#1d242e; --tinta-media:#3c4451; --gris:#7c838c;
+    --ocre:#b57b23; --ocre-claro:#fcf6e9; --ocre-borde:#e8d9b4;
+    --rojo:#b4442e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--crema);color:var(--tinta);
+       font-family:Lato,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
+  .caja{max-width:960px;margin:0 auto;padding:28px 20px 64px}
+
+  .ante{font-size:9px;font-weight:700;color:var(--verde);text-transform:uppercase;
+        letter-spacing:.22em;margin:0 0 8px}
+  h1{font-size:30px;font-weight:900;margin:0 0 6px;line-height:1.15}
+  .bajada{font-size:14px;font-weight:300;color:var(--tinta-media);margin:0 0 4px}
+  .filete{height:1px;background:var(--verde);margin:14px 0 20px}
+
+  h2{font-size:9px;font-weight:700;color:var(--verde-medio);text-transform:uppercase;
+     letter-spacing:.22em;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--linea)}
+
+  .tabs{display:flex;gap:0;margin:0 0 18px;border-bottom:1px solid var(--linea)}
+  .tabs button{font-family:inherit;font-size:11px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.16em;cursor:pointer;border:none;background:none;color:var(--gris);
+    padding:9px 16px;border-bottom:2px solid transparent}
+  .tabs button.activa{color:var(--verde);border-bottom-color:var(--verde)}
+
+  .estado{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;
+          font-size:12px;color:var(--gris);margin:0 0 16px}
+  .punto{display:inline-block;width:8px;height:8px;border-radius:50%;
+         background:var(--verde-medio);margin-right:6px;vertical-align:1px}
+  .punto.mal{background:var(--rojo)}
+  .estado b{color:var(--tinta);font-weight:700}
+  .sello{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.14em;
+    padding:3px 8px;border-radius:2px;text-transform:uppercase}
+  .sello.ok{background:var(--verde-papel);color:var(--verde)}
+  .sello.casi{background:var(--ocre-claro);color:var(--ocre)}
+  .sello.mal{background:#faeeea;color:var(--rojo)}
+
+  .controles{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;
+             background:var(--verde-papel);padding:14px 16px;margin:0 0 6px}
+  .campo{display:flex;flex-direction:column;gap:4px}
+  .campo label{font-size:8.4px;font-weight:700;text-transform:uppercase;
+               letter-spacing:.22em;color:var(--verde-medio)}
+  .campo input,.campo select{font-family:inherit;font-size:13px;font-weight:700;color:var(--tinta);
+    border:1px solid var(--linea);background:#fff;padding:6px 8px;border-radius:2px}
+  .anclas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 22px}
+  .anclas button{font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;
+    background:#fff;color:var(--verde-medio);border:1px solid var(--ocre-borde);
+    padding:5px 10px;border-radius:2px}
+  .anclas button:hover{background:var(--ocre-claro)}
+
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;min-width:620px;font-size:13px}
+  thead th{background:var(--verde);color:#fff;font-weight:700;font-size:9.4px;
+    text-transform:uppercase;letter-spacing:.14em;padding:9px 10px;text-align:right;white-space:nowrap}
+  thead th:first-child{text-align:left}
+  tbody td{padding:8px 10px;text-align:right;white-space:nowrap;
+    font-variant-numeric:tabular-nums;font-weight:700}
+  tbody td:first-child{text-align:left}
+  tbody tr:nth-child(odd){background:var(--banda)}
+  tbody tr.descartable td{color:var(--gris)}
+  tfoot td{padding:9px 10px;text-align:right;font-weight:900;color:var(--verde);
+    border-top:1px solid var(--verde);background:var(--verde-papel);
+    font-variant-numeric:tabular-nums}
+  tfoot td:first-child{text-align:left}
+  .neg{color:var(--rojo)}
+  .marca{display:inline-block;margin-left:7px;font-size:8.4px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.14em;color:var(--ocre)}
+  .matriz td, .matriz th{padding:7px 8px;font-size:12px}
+  .matriz tbody td:first-child{font-size:11px}
+  .asterisco{color:var(--ocre);font-weight:900}
+
+  /* barra comprometido vs presupuesto */
+  .barra{display:inline-block;width:90px;height:7px;background:var(--linea);
+    vertical-align:1px;position:relative;overflow:hidden}
+  .barra i{display:block;height:100%;background:var(--verde-medio)}
+  .pct{font-size:11px;color:var(--gris);font-weight:400;margin-left:7px}
+
+  .lectura{margin:14px 0 0;background:var(--ocre-claro);border:1px solid var(--ocre-borde);
+    border-radius:3px;padding:15px 17px}
+  .lectura p{margin:0 0 9px;font-size:12.5px;line-height:1.55;color:var(--tinta-media)}
+  .lectura p:last-child{margin-bottom:0}
+  .lectura b{color:var(--tinta)}
+
+  .aviso{background:#faeeea;border-left:3px solid var(--rojo);padding:11px 14px;
+    font-size:12.5px;line-height:1.5;margin:0 0 16px;color:var(--tinta-media)}
+  .ok{background:var(--verde-papel);border-left:3px solid var(--verde-medio);padding:10px 14px;
+    font-size:12px;margin:0 0 16px;color:var(--tinta-media)}
+
+  .pie{margin-top:34px;padding-top:12px;border-top:1px solid var(--linea);
+    font-size:11px;font-weight:300;color:var(--gris);line-height:1.6}
+</style>
+
+<div class="caja">
+  <p class="ante">Lacau y Cía S.A. · Cash Flow</p>
+  <h1>La tabla que cierra</h1>
+  <p class="bajada">El flujo entre dos fechas, partido entre lo que ya tiene papel atrás
+    y lo que todavía es presupuesto de una campaña sin cosechar.</p>
+  <div class="filete"></div>
+  <div id="cuerpo"><p style="color:var(--gris);font-size:13px">Cargando…</p></div>
+</div>
+
+<script>
+(function () {
+  var API = "https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tabla";
+  var k = new URLSearchParams(location.hash.slice(1)).get("k");
+  var cuerpo = document.getElementById("cuerpo");
+  var estado = { vista: "historico", foto: null, desde: null, hasta: null, gdesde: null };
+
+  if (!k) {
+    cuerpo.innerHTML = '<div class="aviso">Falta la clave en el link. ' +
+      'El link completo termina en <code>#k=…</code>.</div>';
+    return;
+  }
+
+  var n1 = function (v) {
+    if (v === null || v === undefined) return "·";
+    return v.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  };
+  var num = function (v) {
+    if (v === null || v === undefined) return '<td>·</td>';
+    return '<td class="' + (v < 0 ? "neg" : "") + '">' + n1(v) + "</td>";
+  };
+  var dmy = function (s) {
+    return s ? s.slice(8, 10) + "/" + s.slice(5, 7) + "/" + s.slice(0, 4) : "—";
+  };
+  var MES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  var rot = function (clave) { // '2026-08' -> 'ago-26'
+    return MES[Number(clave.slice(5, 7)) - 1] + "-" + clave.slice(2, 4);
+  };
+
+  function pedir() {
+    var p = new URLSearchParams({ k: k });
+    if (estado.vista === "giorgi") {
+      p.set("vista", "giorgi");
+      if (estado.gdesde) p.set("gdesde", estado.gdesde);
+    } else {
+      if (estado.foto)  p.set("foto",  estado.foto);
+      if (estado.desde) p.set("desde", estado.desde);
+      if (estado.hasta) p.set("hasta", estado.hasta);
+    }
+
+    fetch(API + "?" + p.toString())
+      .then(function (r) {
+        if (r.status === 401) throw new Error("La clave del link no es válida.");
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
+        return r.json();
+      })
+      .then(function (d) { return d.vista === "giorgi" ? pintarGiorgi(d) : pintar(d); })
+      .catch(function (e) {
+        cuerpo.innerHTML = '<div class="aviso">' + (e.message || "No se pudo cargar.") + "</div>";
+      });
+  }
+
+  function tabs() {
+    return '<div class="tabs">' +
+      '<button id="t-hist" class="' + (estado.vista === "historico" ? "activa" : "") + '">Histórico</button>' +
+      '<button id="t-gio" class="' + (estado.vista === "giorgi" ? "activa" : "") + '">Como Giorgi</button>' +
+      "</div>";
+  }
+  function atarTabs() {
+    document.getElementById("t-hist").onclick = function () {
+      if (estado.vista !== "historico") { estado.vista = "historico"; pedir(); }
+    };
+    document.getElementById("t-gio").onclick = function () {
+      if (estado.vista !== "giorgi") { estado.vista = "giorgi"; pedir(); }
+    };
+  }
+
+  // ==== VISTA COMO GIORGI ===================================================
+  function pintarGiorgi(d) {
+    var h = tabs();
+
+    // --- Estado -------------------------------------------------------------
+    h += '<div class="estado">';
+    h += '<span><span class="punto' + (d.bot_ok ? "" : " mal") + '"></span>Foto del <b>' +
+         dmy(d.foto) + "</b>" + (d.bot_ok ? "" : " (no es la de hoy)") + "</span>";
+    h += "<span>Desde <b>" + dmy(d.desde) + "</b> hasta <b>" +
+         (d.horizonte ? dmy(d.horizonte) : "el horizonte del dato") + "</b></span>";
+    if (d.residuo_dia) {
+      var v = d.residuo_dia.veredicto || "";
+      var cl = v === "CIERRA" ? "ok" : (v === "CASI" ? "casi" : "mal");
+      h += '<span>Contraste del día <span class="sello ' + cl + '">' + v + "</span></span>";
+    } else {
+      h += '<span>Contraste del día <span class="sello casi">SIN PLANILLA</span></span>';
+    }
+    h += "</div>";
+
+    if (d.bancos_fuente !== "bajada_B") {
+      h += '<div class="aviso"><b>Bancos sin saldo inicial.</b> El saldo del día lo calcula ' +
+        "Albor según la fecha de inicio y se ajusta por conciliación manual — no se puede " +
+        "derivar de nuestra foto. La celda del primer mes de <b>01 - BANCOS</b> muestra solo " +
+        "los movimientos <span class='asterisco'>*</span>; el saldo entra cuando el bot haga " +
+        "la bajada propia con este rango.</div>";
+    }
+
+    // --- Controles ------------------------------------------------------------
+    h += '<div class="controles">';
+    h += '<div class="campo"><label>Desde</label><input type="date" id="g-desde" value="' +
+         d.desde + '"></div>';
+    h += '<div class="campo"><label>&nbsp;</label>' +
+         '<button id="g-hoy" style="font-family:inherit;font-size:12px;font-weight:700;' +
+         'cursor:pointer;background:#fff;color:var(--verde-medio);' +
+         'border:1px solid var(--ocre-borde);padding:6px 12px;border-radius:2px">Hoy</button></div>';
+    h += "</div><div style='height:16px'></div>";
+
+    // --- La matriz ------------------------------------------------------------
+    // celdas: {rubro, clave, importe, origen}. Puede haber 2 origenes en una celda: se suman.
+    var claves = [], rubros = [], cel = {};
+    d.celdas.forEach(function (c) {
+      if (claves.indexOf(c.clave) < 0) claves.push(c.clave);
+      if (rubros.indexOf(c.rubro) < 0) rubros.push(c.rubro);
+      var kk = c.rubro + "|" + c.clave;
+      cel[kk] = (cel[kk] || 0) + c.importe;
+    });
+    claves.sort(); rubros.sort();
+    var primero = claves[0];
+    var sinSaldo = d.bancos_fuente !== "bajada_B";
+
+    h += '<div class="scroll"><table class="matriz"><thead><tr><th>Rubro</th>';
+    claves.forEach(function (c) { h += "<th>" + rot(c) + "</th>"; });
+    h += "<th>Total</th></tr></thead><tbody>";
+
+    rubros.forEach(function (r) {
+      var tot = 0;
+      h += "<tr><td>" + r + "</td>";
+      claves.forEach(function (c) {
+        var v = cel[r + "|" + c];
+        tot += v || 0;
+        var marca = (r === "01 - BANCOS" && c === primero && sinSaldo)
+          ? '<span class="asterisco">*</span>' : "";
+        if (v === undefined) { h += "<td>·</td>"; }
+        else { h += '<td class="' + (v < 0 ? "neg" : "") + '">' + n1(v) + marca + "</td>"; }
+      });
+      h += num(Math.round(tot * 10) / 10) + "</tr>";
+    });
+
+    // Totales por mes + acumulado corrido (la fila que mira Giorgi)
+    var totMes = claves.map(function (c) {
+      return rubros.reduce(function (s, r) { return s + (cel[r + "|" + c] || 0); }, 0);
+    });
+    var acum = [], run = 0;
+    totMes.forEach(function (t) { run += t; acum.push(Math.round(run * 10) / 10); });
+
+    h += "</tbody><tfoot><tr><td>Total del mes</td>";
+    totMes.forEach(function (t) { h += num(Math.round(t * 10) / 10); });
+    h += num(acum[acum.length - 1]) + "</tr><tr><td>Acumulado</td>";
+    acum.forEach(function (a) { h += num(a); });
+    h += "<td></td></tr>";
+
+    // Si la planilla de ella se archivó hoy, la diferencia por mes (control)
+    if (d.giorgi_dia && d.giorgi_dia.length) {
+      var gMes = {};
+      d.giorgi_dia.forEach(function (g) {
+        // sin el saldo inicial de bancos si nosotros no lo tenemos
+        if (sinSaldo && g.rubro === "01 - BANCOS" && g.clave === primero) return;
+        gMes[g.clave] = (gMes[g.clave] || 0) + g.importe;
+      });
+      h += "<tr><td>Δ vs planilla de Giorgi</td>";
+      claves.forEach(function (c, i) {
+        var dif = Math.round((totMes[i] - (gMes[c] || 0)) * 10) / 10;
+        h += num(dif);
+      });
+      h += "<td></td></tr>";
+    }
+    h += "</tfoot></table></div>";
+
+    h += '<div class="lectura">' +
+      "<p>Todo en <b>millones de pesos</b>. Esta es la vista <b>como la baja administración</b>: " +
+      "desde la fecha elegida hasta el horizonte, con lo vencido plegado en el primer mes " +
+      "(regla verificada rubro por rubro contra 11 planillas). Los rubros " +
+      "<b>03 - CONTRATOS DE VENTA</b> y <b>10 - RETENCIONES</b> no arrastran: así lo hace Albor.</p>" +
+      "<p>La fila <b>Acumulado</b> es la posición de caja mes a mes — el número de la derecha " +
+      "es el total al horizonte. Si hay planilla archivada del día, la fila <b>Δ</b> muestra " +
+      "la diferencia por mes: lo normal es ruido de horario (la foto es de la madrugada, la " +
+      "planilla de las 8:30) que migra entre rubros o meses sin cambiar el total.</p></div>";
+
+    h += '<div class="pie">Fuente: Albor, cubo de cash flow → Supabase, foto de la madrugada. ' +
+      "Reconstrucción validada contra las planillas archivadas (residuo &lt; 0,1% desde el 25/08). " +
+      "Fuera del cash flow: rubros 12, 16 y 17 (adicionales).</div>";
+
+    cuerpo.innerHTML = h;
+    atarTabs();
+    document.getElementById("g-desde").onchange = function () {
+      estado.gdesde = this.value; pedir();
+    };
+    document.getElementById("g-hoy").onclick = function () {
+      estado.gdesde = null; pedir();
+    };
+  }
+
+  // ==== VISTA HISTÓRICO (la de siempre) ====================================
+  function pintar(d) {
+    estado.foto = d.foto;
+    var h = tabs();
+
+    // --- Estado. La regla es dura: la foto tiene que ser la de HOY. ---------
+    h += '<div class="estado">';
+    h += '<span><span class="punto' + (d.bot_ok ? "" : " mal") + '"></span>' + d.bot_txt + "</span>";
+    h += "<span>Horizonte <b>" + (d.horizonte ? dmy(d.horizonte) : "sin rotular") + "</b></span>";
+    if (d.control) {
+      h += "<span>Control de bolsas <b>" +
+           (d.control.ok ? "cierra, residuo 0" : "NO CIERRA") + "</b></span>";
+    }
+    h += "</div>";
+
+    if (!d.rango_ok) {
+      h += '<div class="aviso"><b>La bajada no viene rotulada.</b> El bot no está guardando ' +
+           '<code>rango</code> ni <code>fecha_hasta</code>, así que la página no puede afirmar ' +
+           'qué ventana bajó de Albor. Se asume la de siempre.</div>';
+    }
+
+    // --- Controles ---------------------------------------------------------
+    h += '<div class="controles">';
+    h += '<div class="campo"><label>Foto</label><select id="f-foto">' +
+         d.fotos.map(function (f) {
+           return '<option value="' + f + '"' + (f === d.foto ? " selected" : "") + ">" + dmy(f) + "</option>";
+         }).join("") + "</select></div>";
+    h += '<div class="campo"><label>Desde</label><input type="date" id="f-desde" value="' +
+         (d.desde || d.foto) + '"></div>';
+    h += '<div class="campo"><label>Hasta</label><input type="date" id="f-hasta" value="' +
+         (d.hasta || "") + '"></div>';
+    h += "</div>";
+
+    h += '<div class="anclas">';
+    d.anclas.forEach(function (a) {
+      h += '<button data-f="' + a.fecha + '" title="' + a.que_es + '">' +
+           a.ancla.replace(/_/g, " ") + " · " + dmy(a.fecha) + "</button>";
+    });
+    h += "</div>";
+
+    // --- La tabla ----------------------------------------------------------
+    var totImp = d.tabla.reduce(function (s, f) { return s + f.importe; }, 0);
+    h += '<div class="scroll"><table><thead><tr>' +
+         "<th>Mes</th><th>Importe</th><th>Acumulado</th>" +
+         "<th>Ing. comprometido</th><th>Ing. presupuesto</th><th>% con papel</th>" +
+         "</tr></thead><tbody>";
+    d.tabla.forEach(function (f) {
+      var pct = f.pct === null ? 0 : f.pct;
+      h += "<tr" + (f.descartable ? ' class="descartable"' : "") + ">";
+      h += "<td>" + f.rotulo +
+           (f.descartable ? '<span class="marca">descartable</span>' : "") + "</td>";
+      h += num(f.importe) + num(f.acumulado) + num(f.ingC) + num(f.ingP);
+      h += '<td><span class="barra"><i style="width:' + pct + '%"></i></span>' +
+           '<span class="pct">' + (f.pct === null ? "·" : pct + " %") + "</span></td>";
+      h += "</tr>";
+    });
+    h += "</tbody><tfoot><tr><td>Flujo de la ventana</td><td>" +
+         n1(Math.round(totImp * 10) / 10) + "</td><td colspan='4'></td></tr></tfoot></table></div>";
+
+    h += '<div class="lectura">' +
+      "<p>Todo en <b>millones de pesos</b>. Lo que se muestra es el <b>flujo entre las dos " +
+      "fechas</b> — exacto, sin supuestos. El saldo de arranque de bancos queda afuera a " +
+      "propósito: <b>no es derivable</b> desde nuestro lado (medido dos veces, el 21 y el 24/08).</p>" +
+      "<p><b>El % con papel</b> es la parte de los ingresos que tiene un contrato o una factura " +
+      "atrás. El resto es presupuesto de una campaña que todavía no se cosechó. Si ese " +
+      "porcentaje es bajo, el número del mes es una intención, no un compromiso.</p>" +
+      "<p>Un mes marcado <b>descartable</b> es el corte del export: Albor le clava ahí todos " +
+      "los anticipos de compras. Administración pide hasta abril justamente para que ese " +
+      "efecto caiga fuera del mes que se analiza.</p></div>";
+
+    // --- La cola vencida ---------------------------------------------------
+    h += "<h2>La cola vencida — lo que el export de administración pierde</h2>";
+    h += '<div class="scroll"><table><thead><tr>' +
+         "<th>Rubro</th><th>Filas</th><th>M ARS</th><th>Días</th><th>Regla</th>" +
+         "</tr></thead><tbody>";
+    d.cola.rubros.forEach(function (c) {
+      h += "<tr><td>" + c.rubro + "</td><td>" + c.n.toLocaleString("es-AR") + "</td>" +
+           num(c.importe) + "<td>" + c.dias_max + "</td><td>" +
+           (c.tipo === "cobro" ? "traer a hoy" : "correr al viernes") +
+           " · " + dmy(c.propuesta) + "</td></tr>";
+    });
+    h += "</tbody><tfoot><tr><td>Total</td><td></td><td>" + n1(d.cola.total) +
+         "</td><td colspan='2'></td></tr></tfoot></table></div>";
+
+    h += '<div class="lectura">' +
+      "<p>Su export arranca en «hoy», así que todo esto se le cae y lo repone a mano. " +
+      "El bot sí lo tiene, con la fecha real de cada comprobante.</p>" +
+      "<p><b>La regla se muestra, no se aplica sola.</b> Un cobro vencido puede ser que " +
+      "ya se cobró y falta cargar la retención —esa plata no entra nunca— o que no llegó " +
+      "a tiempo. <b>Se ven idénticos en el dato.</b> Por eso esto es una lista para mirar, " +
+      "no un número para sumar.</p>" +
+      "<p>Bancos no entra acá: sus filas con fecha pasada son movimientos que ya ocurrieron.</p>" +
+      "</div>";
+
+    // --- Lo que no está ----------------------------------------------------
+    h += "<h2>Lo que no está</h2>";
+    h += '<div class="aviso"><b>Marzo a junio de 2027.</b> El ejercicio de la compañía va de ' +
+      "julio a junio, y la gruesa se levanta y se liquida en ese tramo. <b>El tablero corta " +
+      "justo antes de que entre la cosecha que paga todo</b>, así que el acumulado que se ve " +
+      "acá es negativo por construcción: es la mitad del ejercicio que gasta, sin la mitad " +
+      "que cobra. Llegar al 30/06/2027 con el presupuesto cargado es el objetivo del " +
+      "proyecto, y no es un problema técnico: es de carga.</div>";
+
+    h += '<div class="pie">Fuente: Albor, cubo de cash flow → Supabase. Una foto por día ' +
+      "calendario. Fuera del cash flow: rubros 12, 16 y 17 (adicionales) y tres cuentas que " +
+      "administración no mira — dólares, cajas chicas y plazo fijo.<br>" +
+      "El tablero completo sigue en su link de siempre.</div>";
+
+    cuerpo.innerHTML = h;
+    atarTabs();
+
+    // --- Eventos -----------------------------------------------------------
+    document.getElementById("f-foto").onchange = function () {
+      estado.foto = this.value; pedir();
+    };
+    document.getElementById("f-desde").onchange = function () {
+      estado.desde = this.value; pedir();
+    };
+    document.getElementById("f-hasta").onchange = function () {
+      estado.hasta = this.value; pedir();
+    };
+    Array.prototype.forEach.call(document.querySelectorAll(".anclas button"), function (b) {
+      b.onclick = function () { estado.hasta = b.dataset.f; pedir(); };
+    });
+  }
+
+  pedir();
+})();
+</script>
