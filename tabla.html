@@ -1,9 +1,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cash Flow · la tabla que cierra</title>
+<title>Cash Flow Lacau</title>
 
 <!--
-  tabla.html v5.1 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
+  tabla.html v6 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
 
   DÓNDE VA: repo peiotaio/tablero-lacau, al lado del index.html.
   El link viejo NO se toca: este abre en /tabla.html#k=<clave>
@@ -32,6 +32,13 @@
       fecha, dos bajadas. Selector de fotos + atajos, Δ total partido en interior / mes en
       curso / bancos, barras por rubro (click filtra) y celdas rubro × mes con lectura.
       Todo agregado en SQL (?vista=cambios[&a=][&b=]); acá no se suma nada.
+
+  v6 (15/09) — nombres por lo que contesta cada pestaña, no por cómo se calcula:
+    · «Mes a mes» (giorgi) · «Qué se movió» (cambios) · «Entre dos fechas» (historico)
+      · «Control» (contraste). Cada una con una línea debajo que dice qué contesta.
+    · Arranca en «Mes a mes» (el número que se lee en Albor). Para abrir directo en
+      otra: #k=<clave>&v=cambios (o historico / contraste / giorgi).
+    · En «Qué se movió» se esconden los rubros con |Δ| menor al umbral (1 MM).
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -60,7 +67,8 @@
   h2{font-size:9px;font-weight:700;color:var(--verde-medio);text-transform:uppercase;
      letter-spacing:.22em;margin:30px 0 10px;padding-top:14px;border-top:1px solid var(--linea)}
 
-  .tabs{display:flex;gap:0;margin:0 0 18px;border-bottom:1px solid var(--linea)}
+  .tabs{display:flex;gap:0;margin:0 0 8px;border-bottom:1px solid var(--linea)}
+  .que{font-size:13px;font-weight:300;color:var(--tinta-media);margin:0 0 18px}
   .tabs button{font-family:inherit;font-size:11px;font-weight:700;text-transform:uppercase;
     letter-spacing:.16em;cursor:pointer;border:none;background:none;color:var(--gris);
     padding:9px 16px;border-bottom:2px solid transparent}
@@ -191,10 +199,10 @@
 </style>
 
 <div class="caja">
-  <p class="ante">Lacau y Cía S.A. · Cash Flow</p>
-  <h1>La tabla que cierra</h1>
-  <p class="bajada">El flujo entre dos fechas, partido entre lo que ya tiene papel atrás
-    y lo que todavía es presupuesto de una campaña sin cosechar.</p>
+  <p class="ante">Lacau y Cía S.A.</p>
+  <h1>Cash Flow</h1>
+  <p class="bajada">Lo que administración carga en Albor, leído todas las madrugadas
+    y mostrado con su mismo criterio.</p>
   <div class="filete"></div>
   <div id="cuerpo"><p style="color:var(--gris);font-size:13px">Cargando…</p></div>
 </div>
@@ -202,9 +210,14 @@
 <script>
 (function () {
   var API = "https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tabla";
-  var k = new URLSearchParams(location.hash.slice(1)).get("k");
+  var hash = new URLSearchParams(location.hash.slice(1));
+  var k = hash.get("k");
   var cuerpo = document.getElementById("cuerpo");
-  var estado = { vista: "historico", foto: null, desde: null, hasta: null, gdesde: null,
+  // Pestaña inicial: "Mes a mes" (el número que administración y Pablo leen en Albor).
+  // Se puede abrir directo en otra con #k=…&v=cambios|historico|contraste|giorgi.
+  var VISTAS = ["giorgi", "cambios", "historico", "contraste"];
+  var v0 = VISTAS.indexOf(hash.get("v")) >= 0 ? hash.get("v") : "giorgi";
+  var estado = { vista: v0, foto: null, desde: null, hasta: null, gdesde: null,
                  cfecha: null, ctodas: false, cir: false,
                  ca: null, cb: null, crubro: null, ctodo: false, cerr: null };
 
@@ -287,13 +300,29 @@
       });
   }
 
+  // Cada pestaña se nombra por lo que contesta, no por cómo se calcula, y lleva
+  // una línea debajo para que cualquiera la abra y entienda sin que se lo cuenten.
+  var PESTANAS = [
+    { id: "t-gio",  vista: "giorgi",    rot: "Mes a mes",
+      que: "La planilla de administración: cada rubro, mes a mes, hasta el horizonte. Es el número que se lee en Albor." },
+    { id: "t-cam",  vista: "cambios",   rot: "Qué se movió",
+      que: "Entre dos fotos del cash flow, cuánto cambió y de qué rubro viene." },
+    { id: "t-hist", vista: "historico", rot: "Entre dos fechas",
+      que: "Cuánto flujo hay de una fecha a otra, y cuánto de eso ya tiene papel atrás." },
+    { id: "t-con",  vista: "contraste", rot: "Control",
+      que: "¿La web dice lo mismo que administración? El semáforo de cada día." }
+  ];
   function tabs() {
-    return '<div class="tabs">' +
-      '<button id="t-hist" class="' + (estado.vista === "historico" ? "activa" : "") + '">Histórico</button>' +
-      '<button id="t-gio" class="' + (estado.vista === "giorgi" ? "activa" : "") + '">Como Giorgi</button>' +
-      '<button id="t-con" class="' + (estado.vista === "contraste" ? "activa" : "") + '">Contraste</button>' +
-      '<button id="t-cam" class="' + (estado.vista === "cambios" ? "activa" : "") + '">Cambios</button>' +
-      "</div>";
+    var h = '<div class="tabs">';
+    var que = "";
+    PESTANAS.forEach(function (p) {
+      var activa = estado.vista === p.vista;
+      if (activa) que = p.que;
+      h += '<button id="' + p.id + '" class="' + (activa ? "activa" : "") + '">' + p.rot + "</button>";
+    });
+    h += "</div>";
+    h += '<p class="que">' + que + "</p>";
+    return h;
   }
   function atarTabs() {
     document.getElementById("t-hist").onclick = function () {
@@ -410,7 +439,9 @@
          "</div>";
 
     // --- Por rubro: barras proporcionales, click filtra ----------------------
-    var rubros = (d.por_rubro || []).filter(function (r) { return r.delta; });
+    // Solo los rubros que cambiaron de verdad: por debajo del umbral (1 MM) es ruido.
+    var umbral = d.umbral_mm || 1;
+    var rubros = (d.por_rubro || []).filter(function (r) { return Math.abs(r.delta || 0) >= umbral; });
     var maxAbs = rubros.reduce(function (m, r) { return Math.max(m, Math.abs(r.delta)); }, 0) || 1;
     h += "<h2>Por rubro</h2>";
     if (!rubros.length) {
@@ -590,7 +621,7 @@
       } else {
         h += toggle;
         h += '<div class="scroll"><table class="matriz"><thead><tr>' +
-             "<th>Rubro</th><th>Mes</th><th>Bot</th><th>Giorgi</th><th>Dif</th><th>Motivo</th>" +
+             "<th>Rubro</th><th>Mes</th><th>Bot</th><th>Planilla</th><th>Dif</th><th>Motivo</th>" +
              "</tr></thead><tbody>";
         lista.forEach(function (c) {
           h += "<tr><td>" + esc(c.rubro) + '</td><td class="izq" style="text-align:left">' +
@@ -648,9 +679,9 @@
     if (d.residuo_dia) {
       var v = d.residuo_dia.veredicto || "";
       var cl = v === "CIERRA" ? "ok" : (v === "CASI" ? "casi" : "mal");
-      h += '<span>Contraste del día <span class="sello ' + cl + '">' + v + "</span></span>";
+      h += '<span>Control del día <span class="sello ' + cl + '">' + v + "</span></span>";
     } else {
-      h += '<span>Contraste del día <span class="sello casi">SIN PLANILLA</span></span>';
+      h += '<span>Control del día <span class="sello casi">SIN PLANILLA</span></span>';
     }
     h += "</div>";
 
@@ -724,7 +755,7 @@
         if (sinSaldo && g.rubro === "01 - BANCOS" && g.clave === primero) return;
         gMes[g.clave] = (gMes[g.clave] || 0) + g.importe;
       });
-      h += "<tr><td>Δ vs planilla de Giorgi</td>";
+      h += "<tr><td>Δ vs planilla de administración</td>";
       claves.forEach(function (c, i) {
         var dif = Math.round((totMes[i] - (gMes[c] || 0)) * 10) / 10;
         h += num(dif);
