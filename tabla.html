@@ -3,7 +3,7 @@
 <title>Cash Flow · la tabla que cierra</title>
 
 <!--
-  tabla.html v3 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
+  tabla.html v4 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
 
   DÓNDE VA: repo peiotaio/tablero-lacau, al lado del index.html.
   El link viejo NO se toca: este abre en /tabla.html#k=<clave>
@@ -19,6 +19,12 @@
     · COMO GIORGI: la matriz rubro × mes desde una fecha elegida (default hoy) hasta el
       horizonte, reconstruida con la regla de arrastre validada contra 11 planillas.
       Bancos: de la bajada B del bot si existe; si no, sin saldo inicial y rotulado.
+
+  v4 (15/09) — tercera vista:
+    · CONTRASTE: la bitácora diaria bot-vs-planilla de administración (una fila por día
+      hábil, la carga una tarea de la nube a las 10:00 AR) y, al hacer click en un día, el
+      detalle por celda (rubro × mes) con el motivo de cada diferencia. Todo viene agregado
+      del servidor (?vista=contraste[&fecha=]); acá solo se pinta.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -116,6 +122,36 @@
   .ok{background:var(--verde-papel);border-left:3px solid var(--verde-medio);padding:10px 14px;
     font-size:12px;margin:0 0 16px;color:var(--tinta-media)}
 
+  /* contraste (v4) */
+  /* .ok tambien es el bloque con borde izquierdo de mas abajo: el chip no lo hereda */
+  .sello.ok{border-left:0;margin:0;padding:3px 8px}
+  .sello.gris{background:#eceae4;color:var(--gris)}
+  .cab{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin:0 0 8px}
+  .cab .grande{font-size:24px;font-weight:900;letter-spacing:.06em;padding:5px 14px;
+    border-radius:3px;text-transform:uppercase}
+  .cab .grande.ok{background:var(--verde-papel);color:var(--verde);border-left:0;margin:0;
+    padding:5px 14px}
+  .cab .grande.casi{background:var(--ocre-claro);color:var(--ocre)}
+  .cab .grande.mal{background:#faeeea;color:var(--rojo)}
+  .cab .grande.gris{background:#eceae4;color:var(--gris)}
+  .cab .cuando{font-size:13px;color:var(--tinta-media)}
+  .cab .cuando b{color:var(--tinta)}
+  .cifras{font-size:13px;color:var(--tinta-media);margin:0 0 18px}
+  .cifras b{color:var(--tinta);font-variant-numeric:tabular-nums}
+  .serie tbody tr{cursor:pointer}
+  .serie tbody tr:hover td{background:var(--ocre-claro)}
+  .serie tbody tr.sel td{background:var(--verde-papel);color:var(--verde)}
+  .serie td.izq{text-align:left}
+  .serie td.nota{max-width:280px;overflow:hidden;text-overflow:ellipsis;font-weight:300;
+    color:var(--tinta-media);text-align:left}
+  .motivo{font-size:11px;font-weight:400;color:var(--gris);text-align:left !important}
+  .motivo.rev{color:var(--rojo);font-weight:700}
+  .toggle{font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;background:#fff;
+    color:var(--verde-medio);border:1px solid var(--ocre-borde);padding:5px 10px;
+    border-radius:2px;margin:0 0 10px}
+  .toggle:hover{background:var(--ocre-claro)}
+  .nota-dia{font-size:12.5px;color:var(--tinta-media);margin:0 0 12px;line-height:1.5}
+
   .pie{margin-top:34px;padding-top:12px;border-top:1px solid var(--linea);
     font-size:11px;font-weight:300;color:var(--gris);line-height:1.6}
 </style>
@@ -134,7 +170,8 @@
   var API = "https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tabla";
   var k = new URLSearchParams(location.hash.slice(1)).get("k");
   var cuerpo = document.getElementById("cuerpo");
-  var estado = { vista: "historico", foto: null, desde: null, hasta: null, gdesde: null };
+  var estado = { vista: "historico", foto: null, desde: null, hasta: null, gdesde: null,
+                 cfecha: null, ctodas: false, cir: false };
 
   if (!k) {
     cuerpo.innerHTML = '<div class="aviso">Falta la clave en el link. ' +
@@ -150,6 +187,18 @@
     if (v === null || v === undefined) return '<td>·</td>';
     return '<td class="' + (v < 0 ? "neg" : "") + '">' + n1(v) + "</td>";
   };
+  var n2 = function (v) {
+    if (v === null || v === undefined) return "·";
+    return v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  var num2 = function (v) {
+    if (v === null || v === undefined) return '<td>·</td>';
+    return '<td class="' + (v < 0 ? "neg" : "") + '">' + n2(v) + "</td>";
+  };
+  var esc = function (s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  };
   var dmy = function (s) {
     return s ? s.slice(8, 10) + "/" + s.slice(5, 7) + "/" + s.slice(0, 4) : "—";
   };
@@ -160,7 +209,10 @@
 
   function pedir() {
     var p = new URLSearchParams({ k: k });
-    if (estado.vista === "giorgi") {
+    if (estado.vista === "contraste") {
+      p.set("vista", "contraste");
+      if (estado.cfecha) p.set("fecha", estado.cfecha);
+    } else if (estado.vista === "giorgi") {
       p.set("vista", "giorgi");
       if (estado.gdesde) p.set("gdesde", estado.gdesde);
     } else {
@@ -175,7 +227,11 @@
         if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
         return r.json();
       })
-      .then(function (d) { return d.vista === "giorgi" ? pintarGiorgi(d) : pintar(d); })
+      .then(function (d) {
+        return d.vista === "giorgi" ? pintarGiorgi(d)
+             : d.vista === "contraste" ? pintarContraste(d)
+             : pintar(d);
+      })
       .catch(function (e) {
         cuerpo.innerHTML = '<div class="aviso">' + (e.message || "No se pudo cargar.") + "</div>";
       });
@@ -185,6 +241,7 @@
     return '<div class="tabs">' +
       '<button id="t-hist" class="' + (estado.vista === "historico" ? "activa" : "") + '">Histórico</button>' +
       '<button id="t-gio" class="' + (estado.vista === "giorgi" ? "activa" : "") + '">Como Giorgi</button>' +
+      '<button id="t-con" class="' + (estado.vista === "contraste" ? "activa" : "") + '">Contraste</button>' +
       "</div>";
   }
   function atarTabs() {
@@ -194,6 +251,140 @@
     document.getElementById("t-gio").onclick = function () {
       if (estado.vista !== "giorgi") { estado.vista = "giorgi"; pedir(); }
     };
+    document.getElementById("t-con").onclick = function () {
+      if (estado.vista !== "contraste") { estado.vista = "contraste"; pedir(); }
+    };
+  }
+
+  // ==== VISTA CONTRASTE (v4) ================================================
+  // Nada se suma acá: la bitácora ya viene una fila por día hábil, y el detalle
+  // de un día ya viene celda por celda con su motivo. La página filtra y ordena.
+  var VERED = function (v) {
+    if (v === "CIERRA" || v === "CIERRA*") return "ok";
+    if (v === "CASI") return "casi";
+    if (v === "REVISAR") return "mal";
+    return "gris";                       // SIN BOT · SIN PLANILLA · lo que venga
+  };
+  var porDif = function (a, b) {
+    var d = Math.abs(b.dif || 0) - Math.abs(a.dif || 0);
+    if (d) return d;
+    return (a.rubro + a.clave) < (b.rubro + b.clave) ? -1 : 1;
+  };
+
+  function pintarContraste(d) {
+    var h = tabs();
+    var bit = d.bitacora || [];
+    var ult = bit[0] || null;
+
+    if (!ult) {
+      h += '<div class="aviso"><b>Todavía no hay bitácora.</b> La tarea de la nube la ' +
+           "carga a las 10:00 AR de cada día hábil.</div>";
+      cuerpo.innerHTML = h; atarTabs(); return;
+    }
+
+    // --- Cabecera: el último veredicto, en grande ---------------------------
+    h += '<div class="cab">';
+    h += '<span class="grande ' + VERED(ult.veredicto) + '">' + esc(ult.veredicto) + "</span>";
+    h += '<span class="cuando">' + dmy(ult.fecha) +
+         (ult.bot_hora ? " · bot <b>" + esc(ult.bot_hora) + " AR</b>" : " · sin foto del bot") +
+         "</span>";
+    h += '<span class="sello ' + (d.al_dia ? "ok" : "casi") + '">' +
+         (d.al_dia ? "al día" : "atrasado") + "</span>";
+    h += "</div>";
+    h += '<p class="cifras">interior <b>' + n2(ult.interior) + " MM</b> · bancos <b>" +
+         n2(ult.bancos) + " MM</b> · total al horizonte <b>" + n2(ult.total) + " MM</b></p>";
+
+    // --- La serie: una fila por día hábil, click = detalle --------------------
+    h += '<div class="scroll"><table class="serie"><thead><tr>' +
+         "<th>Fecha</th><th>Veredicto</th><th>Interior</th><th>Bancos</th><th>Máx celda</th>" +
+         "<th>A revisar</th><th>Total</th><th>Nota</th></tr></thead><tbody>";
+    bit.forEach(function (f) {
+      h += '<tr data-f="' + f.fecha + '"' + (f.fecha === d.fecha_detalle ? ' class="sel"' : "") +
+           ' title="Ver el detalle del ' + dmy(f.fecha) + '">';
+      h += "<td>" + dmy(f.fecha) + "</td>";
+      h += '<td class="izq"><span class="sello ' + VERED(f.veredicto) + '">' +
+           esc(f.veredicto) + "</span></td>";
+      h += num2(f.interior) + num2(f.bancos) + num2(f.max_celda);
+      h += "<td>" + (f.celdas_revisar === null || f.celdas_revisar === undefined
+                     ? "·" : f.celdas_revisar) + "</td>";
+      h += num2(f.total);
+      h += '<td class="nota" title="' + esc(f.nota) + '">' + esc(f.nota) + "</td>";
+      h += "</tr>";
+    });
+    h += "</tbody></table></div>";
+
+    // --- El detalle del día elegido -------------------------------------------
+    if (d.fecha_detalle) {
+      var fila = null;
+      bit.forEach(function (f) { if (f.fecha === d.fecha_detalle) fila = f; });
+      var todas = (d.detalle || []).slice().sort(porDif);
+      var difs = todas.filter(function (c) { return c.motivo !== "ok"; });
+      var lista = estado.ctodas ? todas : difs;
+
+      h += '<h2 id="detalle">Detalle del ' + dmy(d.fecha_detalle) + "</h2>";
+      if (fila) {
+        h += '<p class="nota-dia"><span class="sello ' + VERED(fila.veredicto) + '">' +
+             esc(fila.veredicto) + "</span>" + (fila.nota ? " &nbsp;" + esc(fila.nota) : "") +
+             (fila.planilla ? '<br><span style="color:var(--gris)">Planilla: ' +
+                              esc(fila.planilla) + "</span>" : "") + "</p>";
+      }
+
+      var toggle = '<button class="toggle" id="c-todas">' +
+        (estado.ctodas ? "solo las diferencias" : "ver las " + todas.length + " celdas") +
+        "</button>";
+
+      if (!todas.length) {
+        h += '<div class="ok">No hay detalle por celda para el ' + dmy(d.fecha_detalle) +
+             (fila && fila.veredicto === "SIN BOT" ? ": ese día no hubo foto del bot" :
+              fila && fila.veredicto === "SIN PLANILLA" ? ": ese día no llegó la planilla" : "") +
+             ".</div>";
+      } else if (!lista.length) {
+        h += '<div class="ok">El ' + dmy(d.fecha_detalle) + " cierra: las " + todas.length +
+             " celdas (rubro × mes) dicen lo mismo en el bot y en la planilla.</div>" + toggle;
+      } else {
+        h += toggle;
+        h += '<div class="scroll"><table class="matriz"><thead><tr>' +
+             "<th>Rubro</th><th>Mes</th><th>Bot</th><th>Giorgi</th><th>Dif</th><th>Motivo</th>" +
+             "</tr></thead><tbody>";
+        lista.forEach(function (c) {
+          h += "<tr><td>" + esc(c.rubro) + '</td><td class="izq" style="text-align:left">' +
+               rot(c.clave) + "</td>" + num2(c.bot) + num2(c.giorgi) + num2(c.dif) +
+               '<td class="motivo' + (c.motivo === "REVISAR" ? " rev" : "") + '">' +
+               esc(c.motivo) + "</td></tr>";
+        });
+        h += "</tbody></table></div>";
+      }
+    } else {
+      h += '<p class="nota-dia" style="margin-top:10px;color:var(--gris)">Click en un día ' +
+           "para ver sus celdas: rubro × mes, bot contra planilla, con el motivo de cada " +
+           "diferencia.</p>";
+    }
+
+    // --- Pie fijo: para que cualquiera lo lea sin que se lo cuenten -----------
+    var u = d.umbrales || {};
+    h += '<div class="pie"><b>Interior:</b> bot menos planilla de administración, meses ' +
+      "posteriores al mes en curso, sin bancos — si es &lt; " + (u.cierra_mm !== undefined ? u.cierra_mm : 1) +
+      " MM las dos fuentes dicen lo mismo. <b>Bancos:</b> el saldo se ajusta por conciliación " +
+      "manual; hasta ±150 MM es normal. <b>Total:</b> acumulado a abril 2027, el número de " +
+      "administración. La planilla llega ~08:30, el bot corre ~01:30: una diferencia grande " +
+      "en un rubro y un mes suele ser una carga de esa mañana y al día siguiente desaparece." +
+      "<br>Todo en millones de pesos. Los fines de semana no aparecen: no hay planilla. " +
+      "La bitácora la escribe una tarea de la nube a las 10:00 AR.</div>";
+
+    cuerpo.innerHTML = h;
+    atarTabs();
+    Array.prototype.forEach.call(document.querySelectorAll(".serie tbody tr"), function (tr) {
+      tr.onclick = function () {
+        estado.cfecha = tr.dataset.f; estado.ctodas = false; estado.cir = true; pedir();
+      };
+    });
+    var bt = document.getElementById("c-todas");
+    if (bt) bt.onclick = function () { estado.ctodas = !estado.ctodas; pintarContraste(d); };
+    if (estado.cir) {
+      estado.cir = false;
+      var el = document.getElementById("detalle");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   // ==== VISTA COMO GIORGI ===================================================
