@@ -3,7 +3,7 @@
 <title>Cash Flow · la tabla que cierra</title>
 
 <!--
-  tabla.html v5 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
+  tabla.html v5.1 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
 
   DÓNDE VA: repo peiotaio/tablero-lacau, al lado del index.html.
   El link viejo NO se toca: este abre en /tabla.html#k=<clave>
@@ -351,10 +351,17 @@
       while (l >= piso && !tiene[l]) l = masDias(l, -7);
       if (tiene[l]) lunes = l;
     }
+    // Las fechas van a la vista: la bajada es de la madrugada (~01:30), así que
+    // la foto de "hoy" es el cierre de ayer, y hasta que entra, "hoy" es la
+    // última foto que hay. Con las fechas al lado nadie tiene que adivinarlo.
+    var hoyRot = hoyF === d.hoy ? "hoy" : "última foto";
     var atajo = function (id, rot, a, b) {
-      return '<button id="' + id + '"' + (a && b && a < b ? "" : " disabled") +
+      var ok = a && b && a < b;
+      return '<button id="' + id + '"' + (ok ? "" : " disabled") +
              ' data-a="' + (a || "") + '" data-b="' + (b || "") + '" title="' +
-             (a && b ? dm(a) + " → " + dm(b) : "no hay foto para este atajo") + '">' + rot + "</button>";
+             (ok ? "comparar la foto del " + dmy(a) + " con la del " + dmy(b) : "no hay foto para este atajo") + '">' +
+             rot + " → " + hoyRot + (ok ? ' <span style="font-weight:400;color:var(--gris)">· ' +
+             dm(a) + " → " + dm(b) + "</span>" : "") + "</button>";
     };
 
     // --- Selector -----------------------------------------------------------
@@ -368,9 +375,9 @@
     h += '<div class="campo"><label>Foto B (después)</label><select id="c-b">' + opciones(bF) + "</select></div>";
     h += "</div>";
     h += '<div class="anclas">' +
-         atajo("c-ayer", "ayer → hoy", ayer, hoyF) +
-         atajo("c-lunes", "lunes → hoy", lunes, hoyF) +
-         atajo("c-7", "hace 7 días → hoy", hace7, hoyF) +
+         atajo("c-ayer", "ayer", ayer, hoyF) +
+         atajo("c-lunes", "lunes", lunes, hoyF) +
+         atajo("c-7", "hace 7 días", hace7, hoyF) +
          "</div>";
 
     if (estado.cerr) {
