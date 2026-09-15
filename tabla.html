@@ -39,6 +39,7 @@
     · Arranca en «Mes a mes» (el número que se lee en Albor). Para abrir directo en
       otra: #k=<clave>&v=cambios (o historico / contraste / giorgi).
     · En «Qué se movió» se esconden los rubros con |Δ| menor al umbral (1 MM).
+    · «Cómo se lee» (arriba a la derecha, v=guia): guía corta por pestaña, sin pedir datos.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -73,6 +74,16 @@
     letter-spacing:.16em;cursor:pointer;border:none;background:none;color:var(--gris);
     padding:9px 16px;border-bottom:2px solid transparent}
   .tabs button.activa{color:var(--verde);border-bottom-color:var(--verde)}
+  .tabs button.ayuda{margin-left:auto;font-weight:400;letter-spacing:.12em}
+
+  .guia{max-width:820px}
+  .guia h3{font-size:13px;font-weight:700;color:var(--verde);margin:24px 0 6px;
+           padding-top:14px;border-top:1px solid var(--linea)}
+  .guia h3:first-child{margin-top:4px;padding-top:0;border-top:none}
+  .guia p{font-size:13px;font-weight:300;color:var(--tinta-media);line-height:1.6;margin:0 0 8px}
+  .guia b{font-weight:700;color:var(--tinta)}
+  .guia .ej{display:inline-block;padding:1px 7px;border-radius:3px;background:var(--banda);
+            font-size:12px;font-weight:400;color:var(--tinta)}
 
   .estado{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;
           font-size:12px;color:var(--gris);margin:0 0 16px}
@@ -215,7 +226,7 @@
   var cuerpo = document.getElementById("cuerpo");
   // Pestaña inicial: "Mes a mes" (el número que administración y Pablo leen en Albor).
   // Se puede abrir directo en otra con #k=…&v=cambios|historico|contraste|giorgi.
-  var VISTAS = ["giorgi", "cambios", "historico", "contraste"];
+  var VISTAS = ["giorgi", "cambios", "historico", "contraste", "guia"];
   var v0 = VISTAS.indexOf(hash.get("v")) >= 0 ? hash.get("v") : "giorgi";
   var estado = { vista: v0, foto: null, desde: null, hasta: null, gdesde: null,
                  cfecha: null, ctodas: false, cir: false,
@@ -266,6 +277,7 @@
   };
 
   function pedir() {
+    if (estado.vista === "guia") { pintarGuia(); return; }   // no pide nada: es texto
     var p = new URLSearchParams({ k: k });
     if (estado.vista === "cambios") {
       p.set("vista", "cambios");
@@ -320,11 +332,93 @@
       if (activa) que = p.que;
       h += '<button id="' + p.id + '" class="' + (activa ? "activa" : "") + '">' + p.rot + "</button>";
     });
+    // Arriba a la derecha: cómo se lee cada pestaña (texto, no pide datos).
+    h += '<button id="t-guia" class="ayuda' + (estado.vista === "guia" ? " activa" : "") + '">Cómo se lee</button>';
     h += "</div>";
-    h += '<p class="que">' + que + "</p>";
+    if (que) h += '<p class="que">' + que + "</p>";
     return h;
   }
+
+  // ==== CÓMO SE LEE (v6) ====================================================
+  // Una guía corta por pestaña, para que cualquiera abra la web y entienda qué
+  // está mirando sin que se lo cuenten. Sin números: los números viven en las
+  // otras pestañas y cambian todos los días.
+  function pintarGuia() {
+    var h = tabs() + '<div class="guia">';
+
+    h += "<h3>Antes que nada</h3>" +
+      "<p>Todo lo que muestra la web sale de <b>Albor</b>: un robot baja el cash flow todas las madrugadas " +
+      "(~01:30) y lo guarda como una <b>foto</b>. La web nunca inventa ni corrige un número: lo lee con el " +
+      "mismo criterio que usa administración, así lo que ves acá es lo que ellos ven en su planilla.</p>" +
+      "<p>Todo está en <b>millones de pesos</b>. Un número en rojo es plata que sale (o una diferencia en contra); " +
+      "en «Qué se movió», la barra verde es un cambio que mejora la proyección y la roja uno que la empeora. " +
+      "El link lleva la clave al final (<span class=\"ej\">#k=…</span>): no lo compartas fuera de la empresa.</p>" +
+      "<p>El acumulado al horizonte es <b>negativo por construcción</b>: el cash flow corta en el horizonte que fija " +
+      "administración, antes de la cosecha que paga todo (los meses de cosecha todavía no están cargados). Un número negativo no dice que la " +
+      "empresa esté mal; dice cuánto falta cubrir hasta esa fecha con lo que hoy está cargado.</p>";
+
+    h += "<h3>Mes a mes</h3>" +
+      "<p><b>Qué es.</b> La misma planilla que arma administración: cada <b>rubro</b> en una fila, cada " +
+      "<b>mes</b> en una columna, desde hoy hasta el horizonte. Es el número que se lee en Albor.</p>" +
+      "<p><b>Cómo se lee.</b> La fila <b>Total del mes</b> dice cuánto entra o sale ese mes; la fila " +
+      "<b>Acumulado</b> va sumando, y su última celda es <b>el número</b>: cuánto falta (o sobra) al horizonte. " +
+      "La columna Total, a la derecha, suma cada rubro en todo el período.</p>" +
+      "<p><b>Detalles.</b> <b>Bancos</b> es el saldo real de hoy en las cuentas. Lo anterior a la fecha " +
+      "«desde» que todavía no se pagó ni cobró se pliega en el primer mes (por eso el mes en curso se mueve " +
+      "más que el resto). La fila <b>Δ vs planilla de administración</b> es un control: 0,0 significa que la web " +
+      "y la planilla dicen exactamente lo mismo; el primer mes puede diferir un poco por lo que administración " +
+      "carga durante la mañana.</p>";
+
+    h += "<h3>Qué se movió</h3>" +
+      "<p><b>Qué es.</b> Dos fotos del cash flow, una antes y otra después, y la diferencia entre las dos: " +
+      "<b>cuánto cambió y de qué rubro viene</b>. Es la pregunta que Albor no contesta, porque pisa el " +
+      "cash flow todos los días y no guarda cómo estaba ayer.</p>" +
+      "<p><b>Cómo se lee.</b> Elegí las dos fotos (o usá los atajos: ayer, el lunes, hace 7 días). El " +
+      "<b>Δ total</b> en grande es cuánto mejoró (+) o empeoró (−) la proyección al horizonte. Abajo, las " +
+      "<b>barras por rubro</b> ordenan de mayor a menor quién explica ese cambio: con saber el rubro ya se sabe " +
+      "dónde buscar. Click en un rubro para ver en qué meses se movió.</p>" +
+      "<p><b>Los tres chips.</b> <b>Interior</b>: los meses posteriores al actual, sin bancos — son los " +
+      "movimientos de verdad (un contrato nuevo, un presupuesto que cambió). <b>Mes en curso</b>: mezcla lo que " +
+      "se pagó o cobró entre las dos fotos con lo que se cargó; se mueve siempre. <b>Bancos</b>: el saldo del " +
+      "día, cambia todos los días. Los tres suman el Δ total.</p>";
+
+    h += "<h3>Entre dos fechas</h3>" +
+      "<p><b>Qué es.</b> Cuánto flujo hay entre una fecha y otra — de acá al viernes, al día 10, a fin de mes, " +
+      "al fin del stock — y <b>cuánto de eso ya tiene papel atrás</b>.</p>" +
+      "<p><b>Cómo se lee.</b> Elegí la foto y las dos fechas (los botones traen las fechas que importan). " +
+      "<b>Importe</b> es el flujo de ese mes; <b>Acumulado</b> lo va sumando. <b>Ing. comprometido</b> son " +
+      "ingresos con contrato o factura; <b>Ing. presupuesto</b> es campaña que todavía no se cosechó. El " +
+      "<b>% con papel</b> dice qué tan firme es el mes: si es bajo, ese número es una intención, no un compromiso.</p>" +
+      "<p><b>La cola vencida.</b> Abajo, lo que está cargado con fecha pasada y todavía no se resolvió: es lo " +
+      "que el export de administración pierde y ellos reponen a mano. La columna «regla» dice a qué fecha " +
+      "conviene traerlo.</p>";
+
+    h += "<h3>Control</h3>" +
+      "<p><b>Qué es.</b> El semáforo de cada día: ¿la web dice lo mismo que la planilla de administración? " +
+      "Todas las mañanas se comparan celda por celda (rubro × mes) y queda una fila.</p>" +
+      "<p><b>Cómo se lee.</b> <b>CIERRA</b>: las dos fuentes dicen lo mismo (diferencia menor a 1 millón). " +
+      "<b>CASI</b>: diferencia chica, casi siempre por lo que se cargó esa mañana. <b>REVISAR</b>: diferencia " +
+      "grande en algún rubro y mes; si al día siguiente vuelve a CIERRA fue una carga de la mañana, no un error. " +
+      "<b>CIERRA*</b>: hubo diferencia pero ya está explicada en la nota.</p>" +
+      "<p><b>Las columnas.</b> <b>Interior</b> es el número que importa (meses posteriores al actual, sin " +
+      "bancos). <b>Bancos</b> difiere casi siempre porque administración ajusta el saldo a mano contra el home " +
+      "banking: hasta unos 150 millones es normal. <b>Total</b> es el acumulado al horizonte según la planilla. " +
+      "Click en un día para ver qué celdas difieren y por qué.</p>";
+
+    h += "<h3>Si algo no cierra</h3>" +
+      "<p>Primero mirá <b>Control</b>: si el día está en CIERRA, la web es fiel a Albor y la duda está en lo " +
+      "que se cargó, no en la web. Después <b>Qué se movió</b> contra ayer: te dice el rubro. Con el rubro y el " +
+      "mes, en Albor se llega al comprobante.</p>";
+
+    h += "</div>";
+    cuerpo.innerHTML = h;
+    atarTabs();
+  }
+
   function atarTabs() {
+    document.getElementById("t-guia").onclick = function () {
+      if (estado.vista !== "guia") { estado.vista = "guia"; pedir(); }
+    };
     document.getElementById("t-hist").onclick = function () {
       if (estado.vista !== "historico") { estado.vista = "historico"; pedir(); }
     };
