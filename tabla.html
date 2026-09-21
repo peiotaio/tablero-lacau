@@ -592,7 +592,8 @@
     }
 
     // --- v7: de qué comprobantes viene (solo con un rubro elegido) ----------------
-    // Se pide aparte (?vista=comprobantes&fecha=<b>&rubro=) y se pinta en #comp.
+    // Se pide aparte (?vista=comprobantes&fecha=<b>&a=<a>&rubro=) y se pinta en #comp. Con a<b no
+    // consecutivas, el servidor netea los deltas diarios del tramo (v7.1).
     if (estado.crubro) {
       h += '<h2>De qué comprobantes viene · ' + esc(estado.crubro) + "</h2>";
       h += '<div id="comp">' + pintarComprobantes(d) + "</div>";
@@ -620,7 +621,7 @@
   var COMP_VISTA = 30;
   function pintarComprobantes(d) {
     var c = estado.comp;
-    if (!c || c.fecha !== d.b.fecha || c.rubro !== estado.crubro) {
+    if (!c || c.fecha !== d.b.fecha || c.a !== d.a.fecha || c.rubro !== estado.crubro) {
       return '<p class="nota-dia" style="color:var(--gris)">Cargando comprobantes…</p>';
     }
     if (c.error) return '<div class="aviso">' + esc(c.error) + "</div>";
@@ -658,22 +659,22 @@
     };
   }
   function pedirComprobantes(d) {
-    var fecha = d.b.fecha, rubro = estado.crubro;
-    if (estado.comp && estado.comp.fecha === fecha && estado.comp.rubro === rubro && !estado.comp.error) {
+    var fecha = d.b.fecha, a = d.a.fecha, rubro = estado.crubro;
+    if (estado.comp && estado.comp.fecha === fecha && estado.comp.a === a && estado.comp.rubro === rubro && !estado.comp.error) {
       atarComprobantes(d); return;                       // ya lo tengo
     }
-    var p = new URLSearchParams({ k: k, vista: "comprobantes", fecha: fecha, rubro: rubro });
+    var p = new URLSearchParams({ k: k, vista: "comprobantes", fecha: fecha, a: a, rubro: rubro });
     fetch(API + "?" + p.toString())
       .then(function (r) {
         if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
         return r.json();
       })
       .then(function (c) {
-        estado.comp = { fecha: fecha, rubro: rubro, fecha_anterior: c.fecha_anterior,
+        estado.comp = { fecha: fecha, a: a, rubro: rubro, fecha_anterior: c.fecha_anterior,
                         filas: c.filas || [], total_filas: c.total_filas || 0 };
       })
       .catch(function (e) {
-        estado.comp = { fecha: fecha, rubro: rubro, error: e.message || "No se pudieron cargar los comprobantes." };
+        estado.comp = { fecha: fecha, a: a, rubro: rubro, error: e.message || "No se pudieron cargar los comprobantes." };
       })
       .then(function () {
         // Solo si el usuario sigue en el mismo rubro y la misma foto B.
