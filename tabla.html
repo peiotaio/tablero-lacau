@@ -3,7 +3,7 @@
 <title>Cash Flow Lacau</title>
 
 <!--
-  tabla.html v6 — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
+  tabla.html v7 (21/09/2026) — el tablero nuevo del PLAN_tablero_desde_cero_2026-08-24.
 
   DÓNDE VA: repo peiotaio/tablero-lacau, al lado del index.html.
   El link viejo NO se toca: este abre en /tabla.html#k=<clave>
@@ -40,6 +40,15 @@
       otra: #k=<clave>&v=cambios (o historico / contraste / giorgi).
     · En «Qué se movió» se esconden los rubros con |Δ| menor al umbral (1 MM).
     · «Cómo se lee» (arriba a la derecha, v=guia): guía corta por pestaña, sin pedir datos.
+
+  v7 (21/09) — la web lee del REGISTRO INMUTABLE (edge function tabla v7, esquema `analisis`):
+    · «Mes a mes» y «Qué se movió» salen del registro de fotos de la base, que no se ralea
+      nunca: una foto vieja no cambia nunca. Se retira el selector «desde»: el registro se lee
+      siempre desde la fecha de la foto (el criterio de administración).
+    · «Qué se movió»: al hacer click en un rubro, debajo de las celdas, «De qué comprobantes
+      viene» (?vista=comprobantes&fecha=<b>&rubro=): tipo · referente · fecha del movimiento ·
+      Δ. 30 filas y botón «ver todos». Entre dos fotos no consecutivas la diferencia se calcula
+      sobre las dos matrices registradas (cada una leída desde su propia fecha).
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -228,9 +237,10 @@
   // Se puede abrir directo en otra con #k=…&v=cambios|historico|contraste|giorgi.
   var VISTAS = ["giorgi", "cambios", "historico", "contraste", "guia"];
   var v0 = VISTAS.indexOf(hash.get("v")) >= 0 ? hash.get("v") : "giorgi";
-  var estado = { vista: v0, foto: null, desde: null, hasta: null, gdesde: null,
+  var estado = { vista: v0, foto: null, desde: null, hasta: null,
                  cfecha: null, ctodas: false, cir: false,
-                 ca: null, cb: null, crubro: null, ctodo: false, cerr: null };
+                 ca: null, cb: null, crubro: null, ctodo: false, cerr: null,
+                 comp: null, compTodos: false };   // v7: comprobantes del rubro elegido
 
   if (!k) {
     cuerpo.innerHTML = '<div class="aviso">Falta la clave en el link. ' +
@@ -288,7 +298,6 @@
       if (estado.cfecha) p.set("fecha", estado.cfecha);
     } else if (estado.vista === "giorgi") {
       p.set("vista", "giorgi");
-      if (estado.gdesde) p.set("gdesde", estado.gdesde);
     } else {
       if (estado.foto)  p.set("foto",  estado.foto);
       if (estado.desde) p.set("desde", estado.desde);
@@ -349,7 +358,9 @@
     h += "<h3>Antes que nada</h3>" +
       "<p>Todo lo que muestra la web sale de <b>Albor</b>: un robot baja el cash flow todas las madrugadas " +
       "(~01:30) y lo guarda como una <b>foto</b>. La web nunca inventa ni corrige un número: lo lee con el " +
-      "mismo criterio que usa administración, así lo que ves acá es lo que ellos ven en su planilla.</p>" +
+      "mismo criterio que usa administración, así lo que ves acá es lo que ellos ven en su planilla. " +
+      "Los números salen del <b>registro inmutable</b> de la base: cada foto queda guardada tal cual se " +
+      "leyó ese día, y <b>una foto vieja no cambia nunca</b>.</p>" +
       "<p>Todo está en <b>millones de pesos</b>. Un número en rojo es plata que sale (o una diferencia en contra); " +
       "en «Qué se movió», la barra verde es un cambio que mejora la proyección y la roja uno que la empeora. " +
       "El link lleva la clave al final (<span class=\"ej\">#k=…</span>): no lo compartas fuera de la empresa.</p>" +
@@ -376,7 +387,8 @@
       "<p><b>Cómo se lee.</b> Elegí las dos fotos (o usá los atajos: ayer, el lunes, hace 7 días). El " +
       "<b>Δ total</b> en grande es cuánto mejoró (+) o empeoró (−) la proyección al horizonte. Abajo, las " +
       "<b>barras por rubro</b> ordenan de mayor a menor quién explica ese cambio: con saber el rubro ya se sabe " +
-      "dónde buscar. Click en un rubro para ver en qué meses se movió.</p>" +
+      "dónde buscar. Click en un rubro para ver en qué meses se movió y, más abajo, <b>de qué " +
+      "comprobantes viene</b> (tipo, referente, fecha y Δ).</p>" +
       "<p><b>Los tres chips.</b> <b>Interior</b>: los meses posteriores al actual, sin bancos — son los " +
       "movimientos de verdad (un contrato nuevo, un presupuesto que cambió). <b>Mes en curso</b>: mezcla lo que " +
       "se pagó o cobró entre las dos fotos con lo que se cargó; se mueve siempre. <b>Bancos</b>: el saldo del " +
@@ -439,7 +451,7 @@
   // agregado (total, por rubro, celdas, ya ordenado por |delta|); acá se pinta,
   // se filtra por rubro y se esconde lo que no cambió.
   var LEC = function (l) {
-    if (!l || l === "movimiento") return "";
+    if (!l || l === "movimiento" || l === "interior") return "";
     if (l.indexOf("mes en curso") === 0) return "gris";
     if (l.indexOf("bancos") === 0) return "azul";
     return "nada";
@@ -507,12 +519,8 @@
       h += '<div class="aviso">' + estado.cerr + "</div>";
     }
 
-    var falta = [];
-    if (d.a && !d.a.ts) falta.push(d.a.fecha);
-    if (d.b && !d.b.ts) falta.push(d.b.fecha);
-    if (d.ok === false || falta.length) {
-      h += '<div class="aviso">A la fecha <b>' + (falta.length ? falta.map(dmy).join("</b> y <b>") : "elegida") +
-           "</b> le falta foto. Elegí otra.</div>";
+    if (d.ok === false) {
+      h += '<div class="aviso">A la fecha elegida le falta foto registrada. Elegí otra.</div>';
       cuerpo.innerHTML = h; atarTabs(); atarCambios(d); return;
     }
 
@@ -524,8 +532,8 @@
     h += '<span class="grande ' + cl + '">Δ ' + sig(dT) + " MM</span>";
     h += "</div>";
     h += '<p class="cifras">foto A <b>' + dm(d.a.fecha) + " " + esc(d.a.hora_ar) + "</b> · foto B <b>" +
-         dm(d.b.fecha) + " " + esc(d.b.hora_ar) + "</b> · leídas desde <b>" + dm(d.desde) +
-         "</b> · horizonte <b>" + dmy(d.horizonte) + "</b></p>";
+         dm(d.b.fecha) + " " + esc(d.b.hora_ar) + "</b> · horizonte <b>" + dmy(d.horizonte) + "</b>" +
+         (d.modo === "matriz" ? ' · <span class="lec gris">fotos no consecutivas</span>' : "") + "</p>";
     h += '<div class="chips">' +
          '<span class="chip">interior <b>' + sig(t.delta_interior) + "</b></span>" +
          '<span class="chip gris">mes en curso <b>' + sig(t.delta_mes_en_curso) + "</b></span>" +
@@ -557,7 +565,7 @@
 
     // --- Celdas ---------------------------------------------------------------
     var lista = (d.celdas || []).filter(function (c) {
-      return (estado.ctodo || c.lectura !== "sin cambio") &&
+      return (estado.ctodo || Math.abs(c.delta || 0) >= umbral) &&
              (!estado.crubro || c.rubro === estado.crubro);
     });
     h += "<h2>Celdas" + (estado.crubro ? " · " + esc(estado.crubro) : "") + "</h2>";
@@ -583,18 +591,96 @@
       h += "</tbody></table></div>";
     }
 
+    // --- v7: de qué comprobantes viene (solo con un rubro elegido) ----------------
+    // Se pide aparte (?vista=comprobantes&fecha=<b>&rubro=) y se pinta en #comp.
+    if (estado.crubro) {
+      h += '<h2>De qué comprobantes viene · ' + esc(estado.crubro) + "</h2>";
+      h += '<div id="comp">' + pintarComprobantes(d) + "</div>";
+    }
+
     // --- Pie fijo ------------------------------------------------------------------
-    h += '<div class="pie">Las dos fotos se leen con el mismo criterio de administración desde ' +
-      "la misma fecha (la de la foto B), así la diferencia es lo que cambió en Albor y no el " +
-      "correr del calendario. <b>Interior:</b> meses posteriores al mes en curso, sin bancos — " +
-      "son los movimientos reales. <b>Mes en curso:</b> mezcla lo que se pagó o cobró entre las " +
-      "dos fotos con lo que se cargó. <b>Bancos:</b> el saldo del día, cambia todos los días." +
+    h += '<div class="pie">Las dos fotos salen del registro inmutable de la base, cada una leída ' +
+      "con el criterio de administración desde su propia fecha. Entre dos fotos consecutivas " +
+      "la diferencia es lo que cambió en Albor; entre fotos no consecutivas el <b>mes en curso</b> " +
+      "incluye además el arrastre de los días que corrieron entre una y otra. " +
+      "<b>Interior:</b> meses posteriores al mes en curso, sin bancos — son los movimientos " +
+      "reales. <b>Mes en curso:</b> mezcla lo que se pagó o cobró entre las dos fotos con lo " +
+      "que se cargó. <b>Bancos:</b> el saldo del día, cambia todos los días." +
       "<br>Todo en millones de pesos. Los tres chips suman el Δ total. Por debajo de " +
       n2(d.umbral_mm) + " MM una celda cuenta como sin cambio.</div>";
 
     cuerpo.innerHTML = h;
     atarTabs();
     atarCambios(d);
+    if (estado.crubro) pedirComprobantes(d);
+  }
+
+  // v7: el tercer nivel de «Qué se movió». Las filas vienen ordenadas por |Δ| del
+  // servidor (máximo 200); acá se muestran 30 y el botón «ver todos» las abre.
+  var COMP_VISTA = 30;
+  function pintarComprobantes(d) {
+    var c = estado.comp;
+    if (!c || c.fecha !== d.b.fecha || c.rubro !== estado.crubro) {
+      return '<p class="nota-dia" style="color:var(--gris)">Cargando comprobantes…</p>';
+    }
+    if (c.error) return '<div class="aviso">' + esc(c.error) + "</div>";
+    var filas = c.filas || [];
+    if (!filas.length) {
+      return '<div class="ok">Ningún comprobante de ' + esc(estado.crubro) + " cambió entre la foto del " +
+             dm(c.fecha_anterior) + " y la del " + dm(c.fecha) + ".</div>";
+    }
+    var lista = estado.compTodos ? filas : filas.slice(0, COMP_VISTA);
+    var h = '<p class="nota-dia">Comprobantes que aparecieron, desaparecieron o cambiaron de importe ' +
+            "entre la foto del <b>" + dm(c.fecha_anterior) + "</b> y la del <b>" + dm(c.fecha) + "</b>: " +
+            "<b>" + c.total_filas + "</b>" + (c.total_filas > filas.length ? " (se muestran los " + filas.length + " más grandes)" : "") + ".</p>";
+    if (filas.length > COMP_VISTA) {
+      h += '<button class="toggle" id="c-comp-todos">' +
+           (estado.compTodos ? "solo los " + COMP_VISTA + " más grandes" : "ver todos (" + filas.length + ")") + "</button>";
+    }
+    h += '<div class="scroll"><table class="matriz"><thead><tr>' +
+         "<th>Tipo</th><th>Referente</th><th>Fecha mov.</th><th>Δ (MM)</th>" +
+         "</tr></thead><tbody>";
+    lista.forEach(function (f) {
+      h += '<tr><td>' + esc(f.tipo) + '</td><td class="izq" style="text-align:left" title="' +
+           esc(f.descripcion) + " · " + esc(f.comprobante) + '">' + esc(f.referente) + "</td>" +
+           '<td style="text-align:left">' + dmy(f.fecha_mov) + "</td>" +
+           '<td class="' + (f.delta_mm < 0 ? "neg" : "") + '">' + sig(f.delta_mm) + "</td></tr>";
+    });
+    h += "</tbody></table></div>";
+    return h;
+  }
+  function atarComprobantes(d) {
+    var bt = document.getElementById("c-comp-todos");
+    if (bt) bt.onclick = function () {
+      estado.compTodos = !estado.compTodos;
+      var el = document.getElementById("comp");
+      if (el) { el.innerHTML = pintarComprobantes(d); atarComprobantes(d); }
+    };
+  }
+  function pedirComprobantes(d) {
+    var fecha = d.b.fecha, rubro = estado.crubro;
+    if (estado.comp && estado.comp.fecha === fecha && estado.comp.rubro === rubro && !estado.comp.error) {
+      atarComprobantes(d); return;                       // ya lo tengo
+    }
+    var p = new URLSearchParams({ k: k, vista: "comprobantes", fecha: fecha, rubro: rubro });
+    fetch(API + "?" + p.toString())
+      .then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
+        return r.json();
+      })
+      .then(function (c) {
+        estado.comp = { fecha: fecha, rubro: rubro, fecha_anterior: c.fecha_anterior,
+                        filas: c.filas || [], total_filas: c.total_filas || 0 };
+      })
+      .catch(function (e) {
+        estado.comp = { fecha: fecha, rubro: rubro, error: e.message || "No se pudieron cargar los comprobantes." };
+      })
+      .then(function () {
+        // Solo si el usuario sigue en el mismo rubro y la misma foto B.
+        if (estado.vista !== "cambios" || estado.crubro !== rubro) return;
+        var el = document.getElementById("comp");
+        if (el) { el.innerHTML = pintarComprobantes(d); atarComprobantes(d); }
+      });
   }
 
   function atarCambios(d) {
@@ -618,6 +704,7 @@
     Array.prototype.forEach.call(document.querySelectorAll(".rub"), function (r) {
       r.onclick = function () {
         estado.crubro = estado.crubro === r.dataset.r ? null : r.dataset.r;
+        estado.compTodos = false;
         pintarCambios(d);
       };
     });
@@ -787,16 +874,7 @@
         "la bajada propia con este rango.</div>";
     }
 
-    // --- Controles ------------------------------------------------------------
-    h += '<div class="controles">';
-    h += '<div class="campo"><label>Desde</label><input type="date" id="g-desde" value="' +
-         d.desde + '"></div>';
-    h += '<div class="campo"><label>&nbsp;</label>' +
-         '<button id="g-hoy" style="font-family:inherit;font-size:12px;font-weight:700;' +
-         'cursor:pointer;background:#fff;color:var(--verde-medio);' +
-         'border:1px solid var(--ocre-borde);padding:6px 12px;border-radius:2px">Hoy</button></div>';
-    h += "</div><div style='height:16px'></div>";
-
+    // v7: sin selector «desde». El registro se lee siempre desde la fecha de la foto.
     // --- La matriz ------------------------------------------------------------
     // celdas: {rubro, clave, importe, origen}. Puede haber 2 origenes en una celda: se suman.
     var claves = [], rubros = [], cel = {};
@@ -868,18 +946,13 @@
       "la diferencia por mes: lo normal es ruido de horario (la foto es de la madrugada, la " +
       "planilla de las 8:30) que migra entre rubros o meses sin cambiar el total.</p></div>";
 
-    h += '<div class="pie">Fuente: Albor, cubo de cash flow → Supabase, foto de la madrugada. ' +
+    h += '<div class="pie">Fuente: Albor, cubo de cash flow → Supabase, foto de la madrugada, ' +
+      "leída del registro inmutable de la base (una foto vieja no cambia nunca). " +
       "Reconstrucción validada contra las planillas archivadas (residuo &lt; 0,1% desde el 25/08). " +
       "Fuera del cash flow: rubros 12, 16 y 17 (adicionales).</div>";
 
     cuerpo.innerHTML = h;
     atarTabs();
-    document.getElementById("g-desde").onchange = function () {
-      estado.gdesde = this.value; pedir();
-    };
-    document.getElementById("g-hoy").onclick = function () {
-      estado.gdesde = null; pedir();
-    };
   }
 
   // ==== VISTA HISTÓRICO (la de siempre) ====================================
