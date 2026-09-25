@@ -30,7 +30,8 @@
 //  (../albor-cashflow-bot, o PLAYWRIGHT_DIR), o `playwright-core` si esta
 //  instalado al lado (caso del watchdog).
 // ===========================================================================
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 const KEY = process.env.TABLERO_KEY;
 if (!KEY) {
@@ -41,13 +42,15 @@ if (!KEY) {
 // Donde esta Playwright: primero al lado (playwright-core / playwright), despues el repo del bot.
 async function cargarPlaywright() {
   const candidatos = [];
-  for (const pkg of ['playwright-core', 'playwright']) {
-    candidatos.push(new URL(`./node_modules/${pkg}/index.mjs`, import.meta.url).href);
+  // Al lado del script, y en el directorio desde donde se corre (en el watchdog el script
+  // vive en web/ pero playwright-core se instala en la raiz del repo del bot: npm sube
+  // hasta el package.json mas cercano, asi que instalarlo "en web/" no lo deja en web/).
+  const bases = [new URL('./', import.meta.url).href, pathToFileURL(process.cwd() + '/').href];
+  if (process.env.PLAYWRIGHT_DIR) bases.push(pathToFileURL(process.env.PLAYWRIGHT_DIR.replace(/\/$/, '') + '/').href);
+  bases.push(new URL('../albor-cashflow-bot/', import.meta.url).href);
+  for (const b of bases) for (const pkg of ['playwright-core', 'playwright']) {
+    candidatos.push(b + `node_modules/${pkg}/index.mjs`);
   }
-  const base = process.env.PLAYWRIGHT_DIR
-    ? 'file://' + process.env.PLAYWRIGHT_DIR.replace(/\/$/, '') + '/'
-    : new URL('../albor-cashflow-bot/', import.meta.url).href;
-  candidatos.push(base + 'node_modules/playwright/index.mjs');
   for (const c of candidatos) {
     try { return await import(c); } catch { /* siguiente */ }
   }
