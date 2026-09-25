@@ -16,6 +16,15 @@
 //    4. no hay scroll horizontal de pagina a 375 px (scrollWidth <= 375);
 //    5. el numero grande (#hero-num) esta pintado.
 //
+//  25/09/2026 (v3): el link se puede compartir (tabla.html v9.1). Cada ancho se
+//  prueba con las DOS formas de pasar la clave: ?k= (query: tiene que
+//  desaparecer de la barra) y #k= (hash). Y al final una apertura "de memoria"
+//  en el mismo navegador, SIN clave en el link: tiene que cargar igual porque
+//  el aparato la recuerda (localStorage cf_clave). Se verifica ademas que
+//  exista el link "olvidar la clave". Todas las consultas van con prueba=1:
+//  la funcion las anota en cf_uso_web con origen='prueba', separadas del uso
+//  real.
+//
 //  Uso:
 //    TABLERO_KEY=... node probar.mjs                 -> tabla.html LOCAL (lo que esta por pushearse)
 //    TABLERO_KEY=... TABLERO_URL=https://.../tabla.html node probar.mjs
@@ -69,8 +78,23 @@ const nav = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.en
 const fallas = [];
 const resumen = [];
 
-async function probarEn(ancho) {
-  const pag = await nav.newPage({ viewport: { width: ancho, height: ancho < 600 ? 812 : 900 }, deviceScaleFactor: 2 });
+// Un contexto por ancho (el localStorage vive en el contexto: asi la apertura
+// "de memoria" encuentra la clave que guardo la apertura anterior).
+async function contexto(ancho) {
+  const ctx = await nav.newContext({ viewport: { width: ancho, height: ancho < 600 ? 812 : 900 }, deviceScaleFactor: 2 });
+  if (!URL_PUBLICADA) {
+    // Se sirve el tabla.html local, pero los DATOS salen del endpoint de produccion:
+    // es la mitad que mas se rompe.
+    await ctx.route('https://tablero.local/**', (r) =>
+      r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html }));
+  }
+  return ctx;
+}
+
+// modo: 'query' (?k=…#prueba=1) · 'hash' (#k=…&prueba=1) · 'memoria' (sin clave: la recuerda el aparato)
+async function probarEn(ancho, modo, ctx) {
+  const pag = await ctx.newPage();
+  const rot = `${ancho} px · ${modo === 'query' ? '?k=' : modo === 'hash' ? '#k=' : 'sin clave (memoria)'}`;
   const errores = [];
   pag.on('pageerror', (e) => errores.push('PAGEERROR: ' + e.message));
   pag.on('console', (m) => {
@@ -78,16 +102,10 @@ async function probarEn(ancho) {
     if (m.type() === 'error' && !/favicon/.test(m.location()?.url ?? '')) errores.push('CONSOLE: ' + m.text());
   });
 
-  let destino;
-  if (URL_PUBLICADA) {
-    destino = URL_PUBLICADA.split('#')[0] + '#k=' + KEY;
-  } else {
-    // Se sirve el tabla.html local, pero los DATOS salen del endpoint de produccion:
-    // es la mitad que mas se rompe.
-    await pag.route('https://tablero.local/**', (r) =>
-      r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html }));
-    destino = 'https://tablero.local/tabla.html#k=' + KEY;
-  }
+  const base = URL_PUBLICADA ? URL_PUBLICADA.split('#')[0].split('?')[0] : 'https://tablero.local/tabla.html';
+  const destino = modo === 'query' ? base + '?k=' + encodeURIComponent(KEY) + '#prueba=1'
+                : modo === 'hash'  ? base + '#k=' + encodeURIComponent(KEY) + '&prueba=1'
+                : base + '#prueba=1';
   await pag.goto(destino, { waitUntil: 'domcontentloaded' });
 
   // El comparador es lo primero que tiene que aparecer. 45 s cubre la edge function fria.
@@ -96,7 +114,7 @@ async function probarEn(ancho) {
     await pag.waitForSelector('table.comp tbody tr', { timeout: 45000 });
   } catch {
     const aviso = await pag.evaluate(() => document.querySelector('.aviso')?.textContent?.trim() ?? '');
-    fallas.push(`${ancho}px: el comparador no aparecio en 45 s` + (aviso ? ` (la pagina dice: "${aviso.slice(0, 160)}")` : ''));
+    fallas.push(`${rot}: el comparador no aparecio en 45 s` + (aviso ? ` (la pagina dice: "${aviso.slice(0, 160)}")` : ''));
   }
   await pag.waitForTimeout(800); // el sello del contraste llega en una segunda llamada
 
@@ -111,15 +129,22 @@ async function probarEn(ancho) {
     ancho: w,
     evoFilas: document.querySelectorAll('table.evo tbody tr').length,
     spark: !!document.querySelector('svg.spark'),
+    search: location.search,
+    hashConClave: /(^|[#&])k=/.test(location.hash),
+    olvidar: !!document.querySelector('#olvidar'),
+    claveGuardada: (function () { try { return !!localStorage.getItem('cf_clave'); } catch (e) { return false; } })(),
   }), ancho);
   filas = r.filas;
 
   if (process.env.FOTO) {
-    await pag.screenshot({ path: `${FOTO_DIR}/tabla_${ancho}.png`, fullPage: true });
+    await pag.screenshot({ path: `${FOTO_DIR}/tabla_${ancho}_${modo}.png`, fullPage: true });
   }
   await pag.close();
 
-  resumen.push(`--- ${ancho} px ---`);
+  resumen.push(`--- ${rot} ---`);
+  resumen.push('clave                : ' + (r.search.indexOf('k=') >= 0 ? 'QUEDO EN LA BARRA (?k=)' : 'no esta en la query') +
+    ' · en el hash: ' + (r.hashConClave ? 'si' : 'no') + ' · recordada: ' + (r.claveGuardada ? 'si' : 'no') +
+    ' · link olvidar: ' + (r.olvidar ? 'si' : 'no'));
   resumen.push('errores de la pagina : ' + (errores.length ? errores.join(' | ') : 'ninguno'));
   resumen.push('numero grande        : ' + (r.heroNum || '(vacio)') + '  ' + r.heroDelta);
   resumen.push('sello del contraste  : ' + (r.sello || '(vacio)'));
@@ -127,16 +152,28 @@ async function probarEn(ancho) {
   resumen.push('pie del residuo      : ' + r.lineasPie + ' lineas' + (r.lineasPie === 3 ? '' : '  <- ' + r.pieTexto));
   resumen.push('scroll horizontal    : scrollWidth ' + r.scrollWidth + ' vs viewport ' + ancho);
 
-  if (errores.length) fallas.push(`${ancho}px: la pagina tiro errores (${errores[0].slice(0, 120)})`);
-  if (!r.filas) fallas.push(`${ancho}px: el comparador no tiene filas`);
-  if (r.lineasPie !== 3) fallas.push(`${ancho}px: el pie del residuo tiene ${r.lineasPie} lineas y no 3`);
-  if (!r.heroNum || r.heroNum === '·MM') fallas.push(`${ancho}px: el numero grande esta vacio`);
-  if (r.scrollWidth > ancho) fallas.push(`${ancho}px: hay scroll horizontal (scrollWidth ${r.scrollWidth})`);
+  if (errores.length) fallas.push(`${rot}: la pagina tiro errores (${errores[0].slice(0, 120)})`);
+  if (!r.filas) fallas.push(`${rot}: el comparador no tiene filas`);
+  if (r.lineasPie !== 3) fallas.push(`${rot}: el pie del residuo tiene ${r.lineasPie} lineas y no 3`);
+  if (!r.heroNum || r.heroNum === '·MM') fallas.push(`${rot}: el numero grande esta vacio`);
+  if (r.scrollWidth > ancho) fallas.push(`${rot}: hay scroll horizontal (scrollWidth ${r.scrollWidth})`);
+  if (/(^\?|&)k=/.test(r.search)) fallas.push(`${rot}: la clave quedo en la barra de direcciones (?k=)`);
+  if (!r.olvidar) fallas.push(`${rot}: falta el link "olvidar la clave en este aparato"`);
+  if (r.filas && !r.claveGuardada) fallas.push(`${rot}: la clave no quedo recordada en el aparato (localStorage cf_clave)`);
   return filas;
 }
 
-await probarEn(375);
-await probarEn(1280);
+// 375: primero ?k= (la forma que se comparte), despues #k=.
+const c375 = await contexto(375);
+await probarEn(375, 'query', c375);
+await probarEn(375, 'hash', c375);
+await c375.close();
+// 1280: #k=, ?k=, y una tercera apertura SIN clave en el mismo navegador (memoria).
+const c1280 = await contexto(1280);
+await probarEn(1280, 'hash', c1280);
+await probarEn(1280, 'query', c1280);
+await probarEn(1280, 'memoria', c1280);
+await c1280.close();
 await nav.close();
 
 console.log(resumen.join('\n'));

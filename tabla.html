@@ -9,6 +9,22 @@
 <link rel="icon" href="data:,">
 
 <!--
+  tabla.html v9.1 (25/09/2026) — EL LINK SE PUEDE COMPARTIR. WhatsApp y algunos clientes de
+  mail cortan el link en el # (pasó el 10/08), así que #k=… no servía para mandárselo a Pablo
+  o a Clari. Ahora:
+    * La clave se acepta también por query: tabla.html?k=… (el #k=… sigue siendo el preferido
+      para favoritos propios). Apenas se lee, se saca de la barra con history.replaceState:
+      la URL queda sin ?k= pero con el resto del deep link en el hash.
+    * La clave se recuerda en el aparato (localStorage, clave cf_clave, en try/catch): después
+      de la primera apertura, el link pelado funciona en ese aparato. Si la función responde
+      401 con la clave guardada, se borra y se muestra el error de "clave inválida".
+    * Un link chico al pie: "olvidar la clave en este aparato" (borra cf_clave y vuelve a la
+      página sin clave).
+    * Deep links: ?k=…#a=…&b=…&obj=…&rubro=… funciona igual que #k=…&a=….
+    * #prueba=1 (o ?prueba=1): las consultas van con &origen=prueba y la función las anota
+      aparte en cf_uso_web (probar.mjs y el watchdog). El uso real no se mezcla con las pruebas.
+  La clave sigue sin estar en este repo (el watchdog del bot tiene un guardia para eso).
+
   tabla.html v9 (24/09/2026) — ESTÉTICA BÁSICA sobre la v8. No cambia qué muestra ni los
   endpoints: los mismos dos bloques, el mismo drill-down, el mismo deep link. Solo presentación:
 
@@ -49,8 +65,9 @@
       analisis.stock_granos de la foto B: grano, TN, USD/TN, TC, MM. Una fila con
       parseo_ok = false se pinta en rojo y no entra en el total.
 
-  DÓNDE VA: repo peiotaio/tablero-lacau (GitHub Pages). Abre en /tabla.html#k=<clave>.
-  LA CLAVE nunca se escribe acá: se lee del hash, que el navegador no manda al servidor.
+  DÓNDE VA: repo peiotaio/tablero-lacau (GitHub Pages). Abre en /tabla.html#k=<clave> (o ?k=,
+  que se limpia de la barra; la clave queda recordada en el aparato).
+  LA CLAVE nunca se escribe acá: se lee del hash o de la query y se guarda en localStorage.
   TODO viene calculado del servidor (edge function `tabla` v8.1, ?vista=comparador,
   ?vista=detalle y ?vista=contraste) y del registro inmutable: acá no se suma nada, solo se pinta.
   Deep link: #k=<clave>&a=YYYY-MM-DD&b=YYYY-MM-DD&obj=YYYY-MM&rubro=<rubro>.
@@ -270,8 +287,26 @@
 (function () {
   var API = "https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tabla";
   var hash = new URLSearchParams(location.hash.slice(1));
-  var k = hash.get("k");
+  var query = new URLSearchParams(location.search);
   var cuerpo = document.getElementById("cuerpo");
+
+  // --- la clave: #k= (favoritos) > ?k= (link para compartir) > la recordada en el aparato ----
+  var LS = "cf_clave";
+  var leerGuardada = function () { try { return localStorage.getItem(LS); } catch (e) { return null; } };
+  var guardar = function (v) { try { localStorage.setItem(LS, v); } catch (e) { /* privado / bloqueado */ } };
+  var olvidar = function () { try { localStorage.removeItem(LS); } catch (e) { /* idem */ } };
+  var k = hash.get("k"), kOrigen = k ? "hash" : null;
+  if (!k && query.get("k")) { k = query.get("k"); kOrigen = "query"; }
+  if (!k) { k = leerGuardada(); kOrigen = k ? "memoria" : null; }
+  // ?k= no se queda en la barra: se saca ya mismo (el resto del deep link vive en el hash).
+  if (query.has("k")) {
+    query.delete("k");
+    var restoQuery = query.toString();
+    try { history.replaceState(null, "", location.pathname + (restoQuery ? "?" + restoQuery : "") + location.hash); } catch (e) { /* noop */ }
+  }
+  if (k) guardar(k);
+  // #prueba=1: consultas automáticas (probar.mjs, watchdog); la función las anota aparte.
+  var prueba = hash.get("prueba") === "1" || query.get("prueba") === "1";
   var esFecha = function (s) { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); };
   var esMes = function (s) { return !!s && /^\d{4}-\d{2}$/.test(s); };
 
@@ -302,7 +337,8 @@
 
   if (!k) {
     cuerpo.innerHTML = '<div class="aviso error"><b>Falta la clave en el link.</b> ' +
-      "El link completo termina en <code>#k=…</code>: pedíselo a quien te lo pasó y abrilo entero.</div>";
+      "El link completo lleva la clave (<code>?k=…</code> o <code>#k=…</code>): pedíselo a quien te lo pasó y abrilo entero. " +
+      "Después de la primera vez, este aparato la recuerda.</div>";
     return;
   }
   esqueleto();
@@ -344,14 +380,20 @@
     if (estado.b) p.set("b", estado.b);
     if (estado.obj) p.set("obj", estado.obj);
     if (estado.rubro) p.set("rubro", estado.rubro);
+    if (prueba) p.set("prueba", "1");
     history.replaceState(null, "", "#" + p.toString());
   }
 
   // --- pedir al servidor ----------------------------------------------------------
   function traer(p) {
     p.set("k", k);
+    if (prueba) p.set("origen", "prueba");
     return fetch(API + "?" + p.toString()).then(function (r) {
-      if (r.status === 401) throw new Error("La clave del link no es válida.");
+      if (r.status === 401) {
+        // La clave recordada ya no sirve (se rotó): se olvida, así la próxima apertura pide el link nuevo.
+        if (kOrigen === "memoria") { olvidar(); throw new Error("La clave que recordaba este aparato ya no es válida."); }
+        throw new Error("La clave del link no es válida.");
+      }
       if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
       return r.json();
     });
@@ -373,7 +415,7 @@
       })
       .catch(function (e) {
         var m = e.message || "";
-        var que = /clave/i.test(m) ? "Revisá que el link esté entero (termina en <code>#k=…</code>)."
+        var que = /clave/i.test(m) ? "Revisá que el link esté entero (lleva <code>?k=…</code> o <code>#k=…</code>). Si la clave cambió, pedí el link nuevo."
                 : /no registrada/i.test(m) ? "Elegí otra foto: esa no está en el registro."
                 : /Failed to fetch|NetworkError|Load failed/i.test(m) ? "Parece un problema de conexión: probá de nuevo en un minuto."
                 : "Si vuelve a pasar, avisale a Peio con la hora y este mensaje.";
@@ -649,7 +691,8 @@
       "acá no se suma nada, solo se pinta.<br>" +
       "COMPROMETIDO: hay un documento con un tercero atrás. PRESUPUESTO: lo carga finanzas por " +
       "fórmula (rubros 04 y 09). Bancos: saldo conciliado del día, cambia todos los días y no tiene comprobante.<br>" +
-      "Colores: verde cierra · ocre hay que mirar · rojo falla. Los importes no llevan color.</div>";
+      "Colores: verde cierra · ocre hay que mirar · rojo falla. Los importes no llevan color.<br>" +
+      'La clave del link queda recordada en este aparato. <a href="#" id="olvidar">Olvidar la clave en este aparato</a>.</div>';
 
     cuerpo.innerHTML = h;
     atar();
@@ -752,6 +795,13 @@
     if (rant) rant.onclick = function () { cambiar({ a: d.fecha_anterior_de_b }); };
     var et = document.getElementById("e-todas");
     if (et) et.onclick = function () { estado.evoTodas = !estado.evoTodas; pintar(); };
+    var olv = document.getElementById("olvidar");
+    if (olv) olv.onclick = function (ev) {
+      ev.preventDefault();
+      olvidar();
+      // Sin hash ni query: la página vuelve a pedir el link con la clave.
+      location.href = location.pathname;
+    };
     Array.prototype.forEach.call(document.querySelectorAll(".comp tbody tr"), function (tr) {
       tr.onclick = function () {
         var r = tr.dataset.r;
