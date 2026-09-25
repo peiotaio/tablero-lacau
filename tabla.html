@@ -3,9 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>Cash Flow Lacau</title>
 
 <!--
+  tabla.html v9 (24/09/2026) — ESTÉTICA BÁSICA sobre la v8. No cambia qué muestra ni los
+  endpoints: los mismos dos bloques, el mismo drill-down, el mismo deep link. Solo presentación:
+
+    * Arriba, UN número grande: el acumulado de la foto B a la fecha objetivo. Debajo, el Δ
+      contra la foto A. Al lado, el sello del contraste del día (CIERRA / REVISAR / falla; de
+      ?vista=contraste, endpoint que ya existía) y la hora de la foto.
+    * Paleta Lacau en :root (verde, crema, ocre, rojo, tinta). El color SOLO significa:
+      verde = cierra, ocre = mirar, rojo = falla. Los importes van en tinta, negativos incluidos.
+    * Números con cifras de ancho fijo, a la derecha, peso normal. La unidad (MM) una vez, en el
+      encabezado de cada tabla.
+    * Evolución: una línea chica en SVG inline (sin librerías) arriba de su tabla.
+    * Celular primero: a 375 px una columna; las tablas con la primera columna fija (sticky).
+    * Estados: esqueleto gris mientras carga; si hay error, una línea con qué pasó y qué hacer.
+    * Modo oscuro con prefers-color-scheme.
+
   tabla.html v8 (24/09/2026) — LOS CUATRO ESCALONES. Pablo pidió textual dos bloques y nada
   más, así que las cuatro pestañas de la v7 se sacan. La pantalla es una sola:
 
@@ -14,7 +30,8 @@
       capa (COMPROMETIDO = documento con un tercero · PRESUPUESTO = cuenta contable), A, B, Δ,
       ordenada por materialidad. La fila de bancos lleva su nota a la vista, no en un tooltip.
       Pie obligatorio: cf_comparador_residuo(a, b), las tres líneas literales de la base. El
-      residuo a la vista es lo que prueba que el número no infla.
+      residuo a la vista es lo que prueba que el número no infla. Desde tabla v8.1 el pie vale
+      para cualquier tramo (a, b] mientras `residuo_valido` (cf_tramo_completo) sea true.
 
     DRILL-DOWN (click en un rubro)
       Los comprobantes que cambiaron en el tramo (a, b]: tipo, comprobante, descripción,
@@ -32,9 +49,11 @@
 
   DÓNDE VA: repo peiotaio/tablero-lacau (GitHub Pages). Abre en /tabla.html#k=<clave>.
   LA CLAVE nunca se escribe acá: se lee del hash, que el navegador no manda al servidor.
-  TODO viene calculado del servidor (edge function `tabla` v8, ?vista=comparador y
-  ?vista=detalle) y del registro inmutable: acá no se suma nada, solo se pinta.
+  TODO viene calculado del servidor (edge function `tabla` v8.1, ?vista=comparador,
+  ?vista=detalle y ?vista=contraste) y del registro inmutable: acá no se suma nada, solo se pinta.
   Deep link: #k=<clave>&a=YYYY-MM-DD&b=YYYY-MM-DD&obj=YYYY-MM&rubro=<rubro>.
+  Prueba de humo: probar.mjs (mismo repo) — carga esta página con datos reales y verifica filas,
+  pie de tres líneas y que no haya scroll horizontal a 375 px.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -42,134 +61,191 @@
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
 
 <style>
+  /* ---- Paleta Lacau. El color solo significa: verde = cierra, ocre = mirar, rojo = falla. ---- */
   :root{
-    --verde:#14452f; --verde-medio:#1b5e3f; --verde-papel:#e8ede7;
-    --crema:#fcfbf8; --banda:#f3f1ea; --linea:#e4e1d8;
-    --tinta:#1d242e; --tinta-media:#3c4451; --gris:#7c838c;
-    --ocre:#b57b23; --ocre-claro:#fcf6e9; --ocre-borde:#e8d9b4;
-    --rojo:#b4442e; --rojo-claro:#faeeea;
-    --azul:#2b4f7a; --azul-claro:#e6eef7;
+    --verde:#14452f; --crema:#fcfbf8; --ocre:#b57b23; --rojo:#b4442e; --tinta:#1d242e;
+    --verde-papel:#e8ede7; --ocre-papel:#fcf6e9; --rojo-papel:#faeeea;
+    --papel:#ffffff; --banda:#f3f1ea; --linea:#e4e1d8; --linea-fuerte:#cfcabb;
+    --tinta-media:#3c4451; --gris:#7c838c; --esqueleto:#e6e3da; --esqueleto-brillo:#f2f0ea;
+    --sobre-verde:#ffffff;
   }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --verde:#6fb08c; --crema:#14181d; --ocre:#d9a04a; --rojo:#e0745c; --tinta:#e9e6de;
+      --verde-papel:#1c2a22; --ocre-papel:#2b241a; --rojo-papel:#2f1d1a;
+      --papel:#1b2027; --banda:#181d23; --linea:#2b323b; --linea-fuerte:#3a434e;
+      --tinta-media:#b8bcc4; --gris:#8a9099; --esqueleto:#242a32; --esqueleto-brillo:#2d343d;
+      --sobre-verde:#0f1a14;
+    }
+  }
+
   *{box-sizing:border-box}
   html{background:var(--crema)}
   body{margin:0;background:var(--crema);color:var(--tinta);
-       font-family:Lato,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
-  .caja{max-width:960px;margin:0 auto;padding:28px 16px 64px}
+       font-family:Lato,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased;
+       font-variant-numeric:tabular-nums}
+  .caja{max-width:960px;margin:0 auto;padding:24px 16px 64px}
 
   .ante{font-size:9px;font-weight:700;color:var(--verde);text-transform:uppercase;
-        letter-spacing:.22em;margin:0 0 8px}
-  h1{font-size:30px;font-weight:900;margin:0 0 6px;line-height:1.15}
-  .bajada{font-size:14px;font-weight:300;color:var(--tinta-media);margin:0 0 4px}
-  .filete{height:1px;background:var(--verde);margin:14px 0 20px}
+        letter-spacing:.22em;margin:0 0 6px}
+  h1{font-size:26px;font-weight:900;margin:0 0 4px;line-height:1.15}
+  .bajada{font-size:13px;font-weight:300;color:var(--tinta-media);margin:0 0 4px;line-height:1.5}
+  .filete{height:1px;background:var(--verde);margin:12px 0 18px}
 
-  h2{font-size:9px;font-weight:700;color:var(--verde-medio);text-transform:uppercase;
-     letter-spacing:.22em;margin:34px 0 10px;padding-top:14px;border-top:1px solid var(--linea)}
+  h2{font-size:9px;font-weight:700;color:var(--verde);text-transform:uppercase;
+     letter-spacing:.22em;margin:32px 0 10px;padding-top:14px;border-top:1px solid var(--linea)}
   h2.primera{margin-top:6px;padding-top:0;border-top:none}
   .que{font-size:13px;font-weight:300;color:var(--tinta-media);margin:0 0 14px;line-height:1.5}
+  .que b{font-weight:700;color:var(--tinta)}
 
-  .estado{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;
-          font-size:12px;color:var(--gris);margin:0 0 16px}
-  .punto{display:inline-block;width:8px;height:8px;border-radius:50%;
-         background:var(--verde-medio);margin-right:6px;vertical-align:1px}
-  .punto.mal{background:var(--rojo)}
-  .estado b{color:var(--tinta);font-weight:700}
+  /* ---- El número grande ---- */
+  .hero{display:grid;grid-template-columns:1fr;gap:10px 28px;align-items:start;
+        padding:16px 18px 14px;background:var(--papel);border:1px solid var(--linea);
+        border-left:4px solid var(--verde);margin:0 0 16px}
+  @media (min-width:640px){.hero{grid-template-columns:auto 1fr}}
+  .hero .rot{font-size:8.6px;font-weight:700;text-transform:uppercase;letter-spacing:.22em;
+             color:var(--verde);margin:0 0 4px}
+  .hero .num{font-size:44px;font-weight:400;line-height:1;letter-spacing:-.01em;margin:0}
+  .hero .num small{font-size:13px;color:var(--gris);font-weight:400;margin-left:6px;letter-spacing:0}
+  .hero .delta{font-size:15px;font-weight:400;color:var(--tinta);margin:8px 0 0}
+  .hero .delta span{color:var(--gris);font-weight:300}
+  .hero .lado{display:flex;flex-direction:column;gap:8px;justify-content:center;
+              font-size:12.5px;color:var(--tinta-media);line-height:1.5}
+  @media (min-width:640px){.hero .lado{border-left:1px solid var(--linea);padding-left:24px}}
+  .sello{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:700;
+         letter-spacing:.14em;text-transform:uppercase;padding:5px 10px;border-radius:2px;
+         width:max-content;max-width:100%}
+  .sello.cierra{background:var(--verde-papel);color:var(--verde)}
+  .sello.mirar{background:var(--ocre-papel);color:var(--ocre)}
+  .sello.falla{background:var(--rojo-papel);color:var(--rojo)}
+  .sello.nada{background:var(--banda);color:var(--gris)}
+  .sello i{display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor}
+  .sello-nota{font-size:11.5px;color:var(--gris);font-weight:300}
+  .hora b{font-weight:700;color:var(--tinta)}
+  .hora.mirar b{color:var(--ocre)}
 
-  .controles{display:flex;flex-wrap:wrap;gap:14px 22px;align-items:flex-end;
-             background:var(--verde-papel);padding:14px 16px;margin:0 0 10px}
-  .campo{display:flex;flex-direction:column;gap:4px}
+  /* ---- Controles ---- */
+  .controles{display:grid;grid-template-columns:1fr;gap:10px;
+             background:var(--verde-papel);padding:12px 14px;margin:0 0 10px}
+  @media (min-width:640px){.controles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .campo{display:flex;flex-direction:column;gap:4px;min-width:0}
   .campo label{font-size:8.4px;font-weight:700;text-transform:uppercase;
-               letter-spacing:.22em;color:var(--verde-medio)}
-  .campo select{font-family:inherit;font-size:13px;font-weight:700;color:var(--tinta);
-    border:1px solid var(--linea);background:#fff;padding:6px 8px;border-radius:2px}
-  .atajos{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 22px}
-  .atajos button,.toggle{font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;
-    background:#fff;color:var(--verde-medio);border:1px solid var(--ocre-borde);
-    padding:5px 10px;border-radius:2px}
-  .atajos button:hover,.toggle:hover{background:var(--ocre-claro)}
-  .atajos button.activo{background:var(--verde);color:#fff;border-color:var(--verde)}
+               letter-spacing:.22em;color:var(--verde)}
+  .campo select{font-family:inherit;font-size:14px;font-weight:400;color:var(--tinta);
+    border:1px solid var(--linea-fuerte);background:var(--papel);padding:8px 8px;border-radius:2px;
+    width:100%;min-width:0}
+  .atajos{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 20px}
+  .atajos button,.toggle{font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;
+    background:var(--papel);color:var(--tinta-media);border:1px solid var(--linea-fuerte);
+    padding:6px 10px;border-radius:2px}
+  .atajos button:hover,.toggle:hover{border-color:var(--verde);color:var(--verde)}
+  .atajos button.activo{background:var(--verde);color:var(--sobre-verde);border-color:var(--verde)}
+  .atajos button:disabled{opacity:.45;cursor:default}
   .toggle{margin:0 0 10px}
 
-  .cab{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:flex-end;margin:0 0 16px}
+  .cab{display:flex;flex-wrap:wrap;gap:10px 28px;align-items:flex-end;margin:0 0 14px}
   .cifra{display:flex;flex-direction:column;gap:3px}
   .cifra span{font-size:8.4px;font-weight:700;text-transform:uppercase;letter-spacing:.22em;
-              color:var(--verde-medio)}
-  .cifra b{font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1.1}
-  .cifra b.neg{color:var(--rojo)}
-  .cifra b.chica{font-size:18px}
+              color:var(--verde)}
+  .cifra b{font-size:22px;font-weight:400;line-height:1.1}
+  .cifra b.chica{font-size:17px}
   .cifra i{font-style:normal;font-size:11px;color:var(--gris)}
 
-  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  table{border-collapse:collapse;width:100%;min-width:560px;font-size:13px}
-  thead th{background:var(--verde);color:#fff;font-weight:700;font-size:9.4px;
+  /* ---- Tablas: primera columna fija, números a la derecha, peso normal ---- */
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--linea);background:var(--papel)}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+  thead th{background:var(--verde);color:var(--sobre-verde);font-weight:700;font-size:9.2px;
     text-transform:uppercase;letter-spacing:.14em;padding:9px 10px;text-align:right;white-space:nowrap}
   thead th:first-child{text-align:left}
-  tbody td{padding:8px 10px;text-align:right;white-space:nowrap;
-    font-variant-numeric:tabular-nums;font-weight:700;vertical-align:top}
-  tbody td:first-child{text-align:left;white-space:normal}
-  tbody tr:nth-child(odd){background:var(--banda)}
-  tfoot td{padding:9px 10px;text-align:right;font-weight:900;color:var(--verde);
-    border-top:1px solid var(--verde);background:var(--verde-papel);
-    font-variant-numeric:tabular-nums}
+  thead th small{display:block;font-size:8px;letter-spacing:.1em;opacity:.8;text-transform:none}
+  tbody td{padding:8px 10px;text-align:right;white-space:nowrap;font-weight:400;
+    vertical-align:top;background:var(--papel);border-bottom:1px solid var(--linea)}
+  tbody td:first-child{text-align:left;white-space:normal;min-width:150px;max-width:260px}
+  tbody tr:nth-child(odd) td{background:var(--banda)}
+  tfoot td{padding:9px 10px;text-align:right;font-weight:700;color:var(--tinta);
+    border-top:1px solid var(--verde);background:var(--verde-papel)}
   tfoot td:first-child{text-align:left}
-  .neg{color:var(--rojo)}
-  .izq{text-align:left !important;white-space:normal !important;font-weight:400 !important}
-  .chico{font-size:11px;font-weight:400;color:var(--gris)}
+  /* primera columna fija (sticky) para leer las tablas de costado en el celular */
+  th:first-child,td:first-child{position:sticky;left:0;z-index:1}
+  td:first-child{box-shadow:1px 0 0 var(--linea)}
+  thead th:first-child{z-index:2}
+  .izq{text-align:left !important;white-space:normal !important}
+  .chico{font-size:11px;font-weight:300;color:var(--gris)}
 
   .comp tbody tr{cursor:pointer}
-  .comp tbody tr:hover td{background:var(--ocre-claro)}
+  .comp tbody tr:hover td{background:var(--ocre-papel)}
   .comp tbody tr.sel td{background:var(--verde-papel);color:var(--verde)}
   .comp .nom{font-weight:700}
-  .nota-fila{display:block;font-size:11px;font-weight:400;color:var(--ocre);margin-top:3px}
-  .capa{display:inline-block;font-size:9px;font-weight:900;letter-spacing:.12em;padding:2px 7px;
-        border-radius:2px;text-transform:uppercase;margin-left:8px;vertical-align:1px}
-  .capa.com{background:var(--verde-papel);color:var(--verde)}
-  .capa.pre{background:var(--azul-claro);color:var(--azul)}
-  .capa.otra{background:#eceae4;color:var(--gris)}
+  .nota-fila{display:block;font-size:11px;font-weight:300;color:var(--tinta-media);margin-top:3px}
+  .capa{display:inline-block;font-size:8.6px;font-weight:700;letter-spacing:.12em;padding:1px 6px;
+        border-radius:2px;text-transform:uppercase;margin-left:8px;vertical-align:1px;
+        border:1px solid var(--linea-fuerte);color:var(--tinta-media);background:transparent}
   .leyenda{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:11.5px;color:var(--tinta-media);
            margin:10px 0 0;line-height:1.5}
   .leyenda .capa{margin:0 6px 0 0}
 
-  .lectura{margin:16px 0 0;background:var(--ocre-claro);border:1px solid var(--ocre-borde);
-    border-radius:3px;padding:15px 17px}
-  .lectura h3{margin:0 0 10px;font-size:9px;font-weight:700;color:var(--ocre);
+  /* ---- Pie: el residuo ---- */
+  .lectura{margin:16px 0 0;background:var(--papel);border:1px solid var(--linea);
+    border-left:4px solid var(--linea-fuerte);padding:14px 16px}
+  .lectura.cierra{border-left-color:var(--verde)}
+  .lectura.mirar{border-left-color:var(--ocre)}
+  .lectura h3{margin:0 0 10px;font-size:9px;font-weight:700;color:var(--tinta-media);
               text-transform:uppercase;letter-spacing:.22em}
-  .residuo{display:grid;grid-template-columns:minmax(150px,1.2fr) 100px 2fr;gap:6px 14px;
+  .lectura h3 small{font-weight:300;text-transform:none;letter-spacing:0;font-size:11px;color:var(--gris);margin-left:8px}
+  .residuo{display:grid;grid-template-columns:minmax(150px,1.2fr) 110px 2fr;gap:6px 14px;
            font-size:12.5px;color:var(--tinta-media);align-items:baseline}
-  .residuo b{color:var(--tinta);font-variant-numeric:tabular-nums;text-align:right}
+  .residuo .linea{display:contents}
+  .residuo b{color:var(--tinta);text-align:right;font-weight:400}
   .residuo .con{font-weight:700;color:var(--tinta)}
   .residuo .exp{font-weight:300}
-  .residuo .pri .con,.residuo .pri b{font-size:14px}
+  .residuo .pri .con,.residuo .pri b{font-size:15px}
+  .residuo .pri b{font-weight:700}
   @media (max-width:560px){
-    .residuo{grid-template-columns:1fr 90px}
+    .residuo{grid-template-columns:1fr 100px}
     .residuo .exp{grid-column:1 / -1;margin:-2px 0 6px;font-size:11.5px}
   }
 
-  .aviso{background:var(--rojo-claro);border-left:3px solid var(--rojo);padding:11px 14px;
-    font-size:12.5px;line-height:1.5;margin:0 0 16px;color:var(--tinta-media)}
-  .ok{background:var(--verde-papel);border-left:3px solid var(--verde-medio);padding:10px 14px;
+  /* ---- Estados ---- */
+  .aviso{background:var(--rojo-papel);border-left:3px solid var(--rojo);padding:11px 14px;
+    font-size:13px;line-height:1.5;margin:0 0 16px;color:var(--tinta)}
+  .aviso b{color:var(--rojo)}
+  .aviso button{margin-left:8px}
+  .mirar-nota{background:var(--ocre-papel);border-left:3px solid var(--ocre);padding:11px 14px;
+    font-size:12.5px;line-height:1.5;margin:0;color:var(--tinta)}
+  .ok{background:var(--verde-papel);border-left:3px solid var(--verde);padding:10px 14px;
     font-size:12px;margin:0 0 16px;color:var(--tinta-media)}
   .nota-dia{font-size:12.5px;color:var(--tinta-media);margin:0 0 12px;line-height:1.5}
   .nota-dia b{color:var(--tinta)}
 
-  .stock-cambio{margin:0 0 16px;background:var(--azul-claro);border-radius:3px;padding:13px 16px}
-  .stock-cambio h3{margin:0 0 8px;font-size:9px;font-weight:700;color:var(--azul);
+  .esqueleto .bloque{background:linear-gradient(90deg,var(--esqueleto) 25%,var(--esqueleto-brillo) 50%,var(--esqueleto) 75%);
+    background-size:200% 100%;animation:brillo 1.4s infinite;border-radius:2px;margin:0 0 10px}
+  @keyframes brillo{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  .esqueleto p{font-size:12px;color:var(--gris);margin:0 0 12px}
+
+  .stock-cambio{margin:0 0 16px;background:var(--papel);border:1px solid var(--linea);border-radius:2px;padding:13px 16px}
+  .stock-cambio h3{margin:0 0 8px;font-size:9px;font-weight:700;color:var(--tinta-media);
                    text-transform:uppercase;letter-spacing:.22em}
   .stock-cambio p{margin:0 0 6px;font-size:13px;color:var(--tinta-media);line-height:1.55}
   .stock-cambio p:last-child{margin:0}
-  .stock-cambio b{color:var(--tinta);font-variant-numeric:tabular-nums}
-  .efecto{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:2px;
-          background:#fff;color:var(--azul);margin:2px 4px 0 0;font-variant-numeric:tabular-nums}
-  .efecto.cero{color:var(--gris);font-weight:400}
+  .stock-cambio b{color:var(--tinta);font-weight:700}
+  .efecto{display:inline-block;font-size:11px;font-weight:400;padding:2px 7px;border-radius:2px;
+          border:1px solid var(--linea-fuerte);color:var(--tinta);margin:2px 4px 0 0}
+  .efecto.cero{color:var(--gris);border-style:dashed}
 
+  /* ---- Evolución: la línea chica ---- */
+  .spark{display:block;width:100%;height:auto;margin:0 0 12px;background:var(--papel);
+         border:1px solid var(--linea)}
+  .spark .l{fill:none;stroke:var(--tinta-media);stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+  .spark .cero{stroke:var(--linea-fuerte);stroke-width:1;stroke-dasharray:3 3}
+  .spark .pa,.spark .pb{fill:var(--verde);stroke:var(--papel);stroke-width:1.5}
+  .spark text{font-family:inherit;font-size:9px;fill:var(--gris)}
+  .spark text.v{fill:var(--tinta);font-size:10px}
+  .spark text.ab{fill:var(--verde);font-weight:700}
   .evo tbody tr.a td,.evo tbody tr.b td{background:var(--verde-papel);color:var(--verde)}
-  .evo tbody tr.b td:first-child::after{content:" B";font-size:9px;letter-spacing:.14em;color:var(--verde-medio)}
-  .evo tbody tr.a td:first-child::after{content:" A";font-size:9px;letter-spacing:.14em;color:var(--verde-medio)}
-  .evo .barra{display:inline-block;height:7px;background:var(--linea);vertical-align:1px;
-              position:relative;width:110px;margin-left:10px}
-  .evo .barra i{position:absolute;top:0;height:100%;background:var(--verde-medio)}
-  .evo .barra i.neg{background:var(--rojo)}
+  .evo tbody tr.b td:first-child::after{content:" B";font-size:9px;letter-spacing:.14em;font-weight:700}
+  .evo tbody tr.a td:first-child::after{content:" A";font-size:9px;letter-spacing:.14em;font-weight:700}
 
-  .stk tbody tr.mal td{color:var(--rojo);background:var(--rojo-claro)}
+  .stk tbody tr.mal td{color:var(--rojo);background:var(--rojo-papel)}
   .marca{display:inline-block;margin-left:7px;font-size:8.4px;font-weight:700;
     text-transform:uppercase;letter-spacing:.14em;color:var(--rojo)}
 
@@ -185,7 +261,7 @@
   <p class="bajada">Qué se movió entre dos fotos y a dónde va el acumulado. Leído del registro
     inmutable, con el criterio de administración.</p>
   <div class="filete"></div>
-  <div id="cuerpo"><p style="color:var(--gris);font-size:13px">Cargando…</p></div>
+  <div id="cuerpo"></div>
 </div>
 
 <script>
@@ -205,14 +281,29 @@
     d: null,          // la última respuesta del comparador
     det: null,        // el drill-down del rubro elegido
     detTodos: false,
-    evoTodas: false
+    evoTodas: false,
+    sello: null       // el contraste del día (?vista=contraste), se pide una vez
   };
 
+  // --- estados: esqueleto y error --------------------------------------------------
+  function esqueleto() {
+    var b = function (w, h) { return '<div class="bloque" style="width:' + w + ';height:' + h + 'px"></div>'; };
+    cuerpo.innerHTML = '<div class="esqueleto" id="esqueleto"><p>Cargando la última foto…</p>' +
+      b("100%", 96) + b("100%", 70) + b("60%", 30) + b("100%", 220) + b("100%", 90) + b("100%", 140) + "</div>";
+  }
+  function error(msg, queHacer) {
+    cuerpo.innerHTML = '<div class="aviso error"><b>No se pudo cargar.</b> ' + esc(msg) +
+      (queHacer ? " " + queHacer : "") + ' <button class="toggle" id="reintentar">Reintentar</button></div>';
+    var bt = document.getElementById("reintentar");
+    if (bt) bt.onclick = function () { esqueleto(); pedir(); };
+  }
+
   if (!k) {
-    cuerpo.innerHTML = '<div class="aviso">Falta la clave en el link. ' +
-      'El link completo termina en <code>#k=…</code>.</div>';
+    cuerpo.innerHTML = '<div class="aviso error"><b>Falta la clave en el link.</b> ' +
+      "El link completo termina en <code>#k=…</code>: pedíselo a quien te lo pasó y abrilo entero.</div>";
     return;
   }
+  esqueleto();
 
   // --- formato ------------------------------------------------------------------
   var n2 = function (v) {
@@ -228,12 +319,9 @@
     var f = dec === 0 ? n0 : n2;
     return (v > 0 ? "+" : "") + f(v);
   };
-  var tdn = function (v) {
-    return '<td class="' + (v !== null && v !== undefined && v < 0 ? "neg" : "") + '">' + n2(v) + "</td>";
-  };
-  var tds = function (v) {
-    return '<td class="' + (v !== null && v !== undefined && v < 0 ? "neg" : "") + '">' + sig(v) + "</td>";
-  };
+  // Los importes van en tinta, negativos incluidos: el color se reserva al significado.
+  var tdn = function (v) { return "<td>" + n2(v) + "</td>"; };
+  var tds = function (v) { return "<td>" + sig(v) + "</td>"; };
   var esc = function (s) {
     return String(s === null || s === undefined ? "" : s)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
@@ -245,8 +333,7 @@
               "septiembre","octubre","noviembre","diciembre"];
   var rot = function (ym) { return ym ? MES[Number(ym.slice(5, 7)) - 1] + "-" + ym.slice(2, 4) : "—"; };
   var mesLargo = function (ym) { return ym ? MESL[Number(ym.slice(5, 7)) - 1] + " " + ym.slice(0, 4) : "—"; };
-  var capaClase = function (c) { return c === "COMPROMETIDO" ? "com" : c === "PRESUPUESTO" ? "pre" : "otra"; };
-  var chipCapa = function (c) { return '<span class="capa ' + capaClase(c) + '">' + esc(c) + "</span>"; };
+  var chipCapa = function (c) { return '<span class="capa">' + esc(c) + "</span>"; };
 
   // El hash lleva el estado (sin recargar): se puede copiar el link tal cual.
   function guardarHash() {
@@ -280,10 +367,47 @@
         guardarHash();
         pintar();
         if (estado.rubro) pedirDetalle();
+        if (!estado.sello) pedirSello();
       })
       .catch(function (e) {
-        cuerpo.innerHTML = '<div class="aviso">' + esc(e.message || "No se pudo cargar.") + "</div>";
+        var m = e.message || "";
+        var que = /clave/i.test(m) ? "Revisá que el link esté entero (termina en <code>#k=…</code>)."
+                : /no registrada/i.test(m) ? "Elegí otra foto: esa no está en el registro."
+                : /Failed to fetch|NetworkError|Load failed/i.test(m) ? "Parece un problema de conexión: probá de nuevo en un minuto."
+                : "Si vuelve a pasar, avisale a Peio con la hora y este mensaje.";
+        error(m || "El servidor no respondió.", que);
       });
+  }
+
+  // El sello del contraste del día: ?vista=contraste (endpoint que ya existía). Una vez.
+  function pedirSello() {
+    traer(new URLSearchParams({ vista: "contraste" }))
+      .then(function (c) {
+        var u = c.bitacora && c.bitacora[0] ? c.bitacora[0] : null;
+        estado.sello = { hoy: c.hoy, fecha: u ? u.fecha : null, veredicto: u ? u.veredicto : null,
+                         al_dia: !!c.al_dia, interior: u ? u.interior : null, bancos: u ? u.bancos : null };
+      })
+      .catch(function () { estado.sello = { error: true }; })
+      .then(function () { pintarSello(); });
+  }
+  function selloHTML() {
+    var s = estado.sello;
+    if (!s) return '<span class="sello nada"><i></i>contraste…</span>';
+    if (s.error) return '<span class="sello nada"><i></i>contraste sin leer</span>' +
+      '<span class="sello-nota">no se pudo leer la bitácora</span>';
+    if (!s.fecha) return '<span class="sello nada"><i></i>sin contraste</span>';
+    var v = String(s.veredicto || "").toUpperCase();
+    var cls = v === "CIERRA" ? "cierra" : v === "REVISAR" || v === "CASI" ? "mirar" : "falla";
+    var rotulo = v || "sin veredicto";
+    var nota = "contraste con administración del " + dm(s.fecha) +
+      (s.al_dia ? "" : " (no es el de hoy)") +
+      (s.interior !== null && s.interior !== undefined ? " · interior " + sig(s.interior) + " MM" : "");
+    return '<span class="sello ' + cls + '"><i></i>' + esc(rotulo) + "</span>" +
+      '<span class="sello-nota">' + esc(nota) + "</span>";
+  }
+  function pintarSello() {
+    var el = document.getElementById("sello");
+    if (el) el.innerHTML = selloHTML();
   }
 
   function pedirDetalle() {
@@ -308,21 +432,68 @@
       });
   }
 
+  // --- la línea chica (SVG inline, sin librerías) ----------------------------------
+  function sparkline(evo, d) {
+    var pts = evo.slice().reverse(); // ascendente por foto
+    if (pts.length < 2) {
+      // Pasa cuando la fecha objetivo es nueva (p. ej. el horizonte se acaba de correr):
+      // una sola foto llega hasta ahi. No es un error: la serie se arma foto a foto.
+      return '<p class="mirar-nota" style="margin:0 0 12px">Solo ' + pts.length + " foto llega a " + esc(mesLargo(d.objetivo)) +
+        ": todavía no hay línea. Para ver la serie elegí una fecha objetivo anterior en el selector.</p>";
+    }
+    var W = 600, H = 120, ml = 8, mr = 8, mt = 18, mb = 20;
+    var vals = pts.map(function (r) { return r.acumulado; });
+    var min = Math.min.apply(null, vals.concat([0])), max = Math.max.apply(null, vals.concat([0]));
+    if (max === min) { max += 1; min -= 1; }
+    var x = function (i) { return ml + (W - ml - mr) * (pts.length === 1 ? 0 : i / (pts.length - 1)); };
+    var y = function (v) { return mt + (H - mt - mb) * (1 - (v - min) / (max - min)); };
+    var path = pts.map(function (r, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(r.acumulado).toFixed(1); }).join(" ");
+    var h = '<svg class="spark" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Acumulado a ' + esc(rot(d.objetivo)) + ' foto por foto">';
+    h += '<line class="cero" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + y(0).toFixed(1) + '" y2="' + y(0).toFixed(1) + '"/>';
+    h += '<path class="l" d="' + path + '"/>';
+    var iA = -1, iB = -1;
+    pts.forEach(function (r, i) { if (r.foto === d.a.fecha) iA = i; if (r.foto === d.b.fecha) iB = i; });
+    // A se rotula arriba del punto y B abajo: cuando son fotos vecinas no se pisan.
+    var punto = function (i, cls, rotulo, abajo) {
+      if (i < 0) return "";
+      var px = x(i), py = y(pts[i].acumulado);
+      var tx = px + (i > pts.length / 2 ? -8 : 8), anchor = i > pts.length / 2 ? "end" : "start";
+      var ty = abajo ? py + 13 : py - 6;
+      ty = Math.max(mt - 8, Math.min(H - mb - 2, ty));
+      return '<circle class="' + cls + '" cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="3.5"/>' +
+        '<text class="ab" x="' + tx.toFixed(1) + '" y="' + ty.toFixed(1) + '" text-anchor="' + anchor + '">' + rotulo + " " + n2(pts[i].acumulado) + "</text>";
+    };
+    h += punto(iA, "pa", "A", false); h += punto(iB, "pb", "B", true);
+    h += '<text x="' + ml + '" y="' + (H - 6) + '">' + dm(pts[0].foto) + "</text>";
+    h += '<text x="' + (W - mr) + '" y="' + (H - 6) + '" text-anchor="end">' + dm(pts[pts.length - 1].foto) + "</text>";
+    h += '<text class="v" x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + pts.length + " fotos · MM a " + esc(rot(d.objetivo)) + "</text>";
+    h += "</svg>";
+    return h;
+  }
+
   // --- pintar ----------------------------------------------------------------------
   function pintar() {
     var d = estado.d;
     var h = "";
-
-    // Estado
     var bHoy = d.b.fecha === d.hoy;
-    h += '<div class="estado">' +
-      '<span><i class="punto' + (bHoy ? "" : " mal") + '"></i>' +
-      (bHoy ? "La foto B es la de <b>hoy</b> (" + esc(d.b.hora_ar) + " AR)"
-            : "La foto B es del <b>" + dmy(d.b.fecha) + "</b>, no de hoy") + "</span>" +
-      "<span>Horizonte de la foto B: <b>" + dmy(d.b.horizonte) + "</b>" +
-      (d.a.horizonte && d.a.horizonte !== d.b.horizonte
-        ? ' <span class="chico">(la A llegaba a ' + dmy(d.a.horizonte) + ")</span>" : "") + "</span>" +
-      "<span>Todo en <b>millones de pesos</b></span>" +
+    var dl = d.total.delta;
+
+    // El número grande: acumulado de B a la fecha objetivo, Δ contra A, sello y hora.
+    h += '<div class="hero" id="hero">' +
+      "<div>" +
+        '<p class="rot">Acumulado a ' + esc(mesLargo(d.objetivo)) + (d.objetivo === d.objetivos[d.objetivos.length - 1] ? " · horizonte" : "") + " · foto del " + dm(d.b.fecha) + "</p>" +
+        '<p class="num" id="hero-num">' + n2(d.total.b) + "<small>MM</small></p>" +
+        '<p class="delta" id="hero-delta">' + sig(dl) + " MM <span>contra la foto del " + dm(d.a.fecha) + "</span></p>" +
+      "</div>" +
+      '<div class="lado">' +
+        '<div id="sello">' + selloHTML() + "</div>" +
+        '<div class="hora' + (bHoy ? "" : " mirar") + '">' +
+          (bHoy ? "Foto de <b>hoy</b>, " + esc(d.b.hora_ar) + " AR"
+                : "Foto del <b>" + dmy(d.b.fecha) + "</b>, " + esc(d.b.hora_ar) + " AR · no es la de hoy") +
+          '<br><span class="chico">horizonte ' + dmy(d.b.horizonte) +
+          (d.a.horizonte && d.a.horizonte !== d.b.horizonte ? " (la A llegaba a " + dmy(d.a.horizonte) + ")" : "") + "</span>" +
+        "</div>" +
+      "</div>" +
       "</div>";
 
     // Controles
@@ -365,12 +536,11 @@
          "acumulado a <b>" + mesLargo(d.objetivo) + "</b>. Ordenado por lo que más pesa. " +
          "Click en un rubro: de qué comprobantes viene.</p>";
 
-    var dl = d.total.delta;
     h += '<div class="cab">' +
-      '<div class="cifra"><span>A · ' + dm(d.a.fecha) + '</span><b class="chica' + (d.total.a < 0 ? " neg" : "") + '">' + n2(d.total.a) + "</b></div>" +
-      '<div class="cifra"><span>B · ' + dm(d.b.fecha) + '</span><b class="chica' + (d.total.b < 0 ? " neg" : "") + '">' + n2(d.total.b) + "</b></div>" +
-      '<div class="cifra"><span>Δ acumulado a ' + rot(d.objetivo) + '</span><b class="' + (dl < 0 ? "neg" : "") + '">' + sig(dl) + "</b>" +
-      "<i>" + d.filas.length + " rubros con cambio</i></div>" +
+      '<div class="cifra"><span>A · ' + dm(d.a.fecha) + '</span><b class="chica">' + n2(d.total.a) + "</b></div>" +
+      '<div class="cifra"><span>B · ' + dm(d.b.fecha) + '</span><b class="chica">' + n2(d.total.b) + "</b></div>" +
+      '<div class="cifra"><span>Δ acumulado a ' + rot(d.objetivo) + "</span><b>" + sig(dl) + "</b>" +
+      "<i>" + d.filas.length + " rubros con cambio · MM</i></div>" +
       "</div>";
 
     if (!d.filas.length) {
@@ -378,7 +548,7 @@
            " acumulando a " + mesLargo(d.objetivo) + ".</div>";
     } else {
       h += '<div class="scroll"><table class="comp"><thead><tr>' +
-        "<th>Rubro</th><th>A · " + dm(d.a.fecha) + "</th><th>B · " + dm(d.b.fecha) + "</th><th>Δ</th>" +
+        "<th>Rubro</th><th>A · " + dm(d.a.fecha) + "<small>MM</small></th><th>B · " + dm(d.b.fecha) + "<small>MM</small></th><th>Δ<small>MM</small></th>" +
         "</tr></thead><tbody>";
       d.filas.forEach(function (f) {
         h += '<tr data-r="' + esc(f.rubro) + '"' + (estado.rubro === f.rubro ? ' class="sel"' : "") + ">" +
@@ -387,7 +557,7 @@
           tdn(f.a) + tdn(f.b) + tds(f.delta) + "</tr>";
       });
       h += "</tbody><tfoot><tr><td>Total de los rubros con cambio</td><td></td><td></td>" +
-           '<td class="' + (d.total.delta_filas < 0 ? "neg" : "") + '">' + sig(d.total.delta_filas) + "</td></tr></tfoot></table></div>";
+           "<td>" + sig(d.total.delta_filas) + "</td></tr></tfoot></table></div>";
       h += '<div class="leyenda">' +
         "<span>" + chipCapa("COMPROMETIDO") + esc(d.capas.COMPROMETIDO || "documento con un tercero") + "</span>" +
         "<span>" + chipCapa("PRESUPUESTO") + esc(d.capas.PRESUPUESTO || "cuenta contable") + "</span>" +
@@ -397,54 +567,55 @@
     // Drill-down (se pinta aparte, en #det)
     h += '<div id="det"></div>';
 
-    // Pie obligatorio: el residuo
-    h += '<div class="lectura"><h3>Residuo · ¿el número infla?</h3>';
-    if (d.residuo_valido && d.residuo.length) {
+    // Pie obligatorio: el residuo. Verde si el movimiento del total y las dos partes cierran.
+    var pieOk = d.residuo_valido && d.residuo.length >= 3;
+    var cuadra = pieOk && Math.abs((d.residuo[0].mm || 0) - ((d.residuo[1].mm || 0) + (d.residuo[2].mm || 0))) <= 0.02;
+    h += '<div class="lectura ' + (pieOk ? (cuadra ? "cierra" : "mirar") : "mirar") + '" id="pie"><h3>Residuo · ¿el número infla?' +
+         (pieOk ? "<small>MM · " + (cuadra ? "las dos partes suman el movimiento" : "las partes no suman el movimiento: mirar") + "</small>" : "") + "</h3>";
+    if (pieOk) {
       h += '<div class="residuo">';
       d.residuo.forEach(function (r, i) {
         var cls = i === 0 ? " pri" : "";
-        h += '<span class="con' + cls + '">' + esc(r.concepto) + "</span>" +
-             '<b class="' + (r.mm < 0 ? "neg" : "") + cls + '">' + sig(r.mm) + "</b>" +
-             '<span class="exp">' + esc(r.explica) + "</span>";
+        h += '<span class="linea' + cls + '"><span class="con">' + esc(r.concepto) + "</span>" +
+             "<b>" + sig(r.mm) + "</b>" +
+             '<span class="exp">' + esc(r.explica) + "</span></span>";
       });
       h += "</div>";
     } else {
-      h += '<p class="nota-dia" style="margin:0">El residuo por comprobantes se calcula entre dos fotos ' +
-        "<b>consecutivas</b> del registro. La A elegida (" + dm(d.a.fecha) + ") no es la anterior a la B (" +
-        dm(d.b.fecha) + "): la anterior es la del <b>" + dm(d.fecha_anterior_de_b) + "</b>. " +
-        '<button class="toggle" id="r-ant" style="margin:6px 0 0">Usar la foto anterior como A</button></p>';
+      h += '<p class="mirar-nota">Para este tramo el residuo no se puede explicar por comprobantes: ' +
+        "alguna foto entre el " + dm(d.a.fecha) + " y el " + dm(d.b.fecha) +
+        " quedó registrada sin su lista de cambios. " +
+        (d.fecha_anterior_de_b && d.fecha_anterior_de_b !== d.a.fecha
+          ? 'Probá con la foto anterior a la B (' + dm(d.fecha_anterior_de_b) + '). ' +
+            '<button class="toggle" id="r-ant" style="margin:6px 0 0">Usar la foto anterior como A</button>'
+          : "Avisale a Peio: es un hueco del registro, no del negocio.") + "</p>";
     }
     h += "</div>";
 
     // ===== BLOQUE 2 · EVOLUCIÓN ===================================================
     h += "<h2>A dónde va · acumulado a " + mesLargo(d.objetivo) + ", foto por foto</h2>";
-    h += '<p class="que">Cada fila es una foto del bot y su acumulado a la misma fecha objetivo. ' +
-         "Se lee hacia abajo: el número de hoy contra el de cada día anterior.</p>";
+    h += '<p class="que">Cada punto es una foto del bot y su acumulado a la misma fecha objetivo. ' +
+         "Se lee de izquierda a derecha en la línea y hacia abajo en la tabla: el número de hoy contra el de cada día anterior.</p>";
     if (d.valle) {
       h += '<div class="cab">' +
-        '<div class="cifra"><span>El valle de la foto B · ' + mesLargo(d.valle.mes) + '</span><b class="' + (d.valle.mm < 0 ? "neg" : "") + '">' + n2(d.valle.mm) + "</b>" +
-        "<i>el mes en que el acumulado toca fondo: ese número obliga a decidir</i></div>" +
-        '<div class="cifra"><span>Total al horizonte · ' + dm(d.b.horizonte) + '</span><b class="chica' + (d.valle.total_final < 0 ? " neg" : "") + '">' + n2(d.valle.total_final) + "</b></div>" +
+        '<div class="cifra"><span>El valle de la foto B · ' + mesLargo(d.valle.mes) + "</span><b>" + n2(d.valle.mm) + "</b>" +
+        "<i>MM · el mes en que el acumulado toca fondo: ese número obliga a decidir</i></div>" +
+        '<div class="cifra"><span>Total al horizonte · ' + dm(d.b.horizonte) + '</span><b class="chica">' + n2(d.valle.total_final) + "</b><i>MM</i></div>" +
         "</div>";
     }
     var evo = d.evolucion;
+    h += sparkline(evo, d);
     var EVO_VISTA = 15;
     var lista = estado.evoTodas ? evo : evo.slice(0, EVO_VISTA);
-    var maxAbs = evo.reduce(function (m, r) { return Math.max(m, Math.abs(r.acumulado)); }, 0) || 1;
     if (evo.length > EVO_VISTA) {
       h += '<button class="toggle" id="e-todas">' +
         (estado.evoTodas ? "solo las últimas " + EVO_VISTA : "ver todas las fotos (" + evo.length + ")") + "</button>";
     }
     h += '<div class="scroll"><table class="evo"><thead><tr>' +
-      "<th>Foto</th><th>Acumulado a " + rot(d.objetivo) + "</th><th>vs foto anterior</th></tr></thead><tbody>";
+      "<th>Foto</th><th>Acumulado a " + rot(d.objetivo) + "<small>MM</small></th><th>vs foto anterior<small>MM</small></th></tr></thead><tbody>";
     lista.forEach(function (r) {
       var cls = r.foto === d.b.fecha ? " class=\"b\"" : r.foto === d.a.fecha ? " class=\"a\"" : "";
-      var w = Math.round(Math.abs(r.acumulado) / maxAbs * 100);
-      h += "<tr" + cls + "><td>" + dmy(r.foto) + "</td>" +
-        '<td><span class="' + (r.acumulado < 0 ? "neg" : "") + '">' + n2(r.acumulado) + "</span>" +
-        '<span class="barra"><i class="' + (r.acumulado < 0 ? "neg" : "") + '" style="width:' + w + '%;' +
-        (r.acumulado < 0 ? "right:0" : "left:0") + '"></i></span></td>' +
-        tds(r.vs_anterior) + "</tr>";
+      h += "<tr" + cls + "><td>" + dmy(r.foto) + "</td>" + tdn(r.acumulado) + tds(r.vs_anterior) + "</tr>";
     });
     h += "</tbody></table></div>";
 
@@ -458,7 +629,7 @@
            (d.stock.n_mal ? " <b>" + d.stock.n_mal + " fila(s) no cierran</b> (el importe no coincide con TN × precio × TC): van en rojo y no entran en el total." : "") +
            "</p>";
       h += '<div class="scroll"><table class="stk"><thead><tr>' +
-        "<th>Grano</th><th>Fecha</th><th>TN</th><th>USD/TN</th><th>TC</th><th>MM</th></tr></thead><tbody>";
+        "<th>Grano</th><th>Fecha</th><th>TN</th><th>USD/TN</th><th>TC</th><th>Importe<small>MM</small></th></tr></thead><tbody>";
       d.stock.filas.forEach(function (s) {
         h += "<tr" + (s.parseo_ok ? "" : ' class="mal"') + '><td><span class="nom" title="' + esc(s.descripcion) + " · comprobante " + esc(s.comprobante) + '">' +
           esc(s.grano) + "</span>" + (s.parseo_ok ? "" : '<span class="marca">no cierra · no se usa</span>') +
@@ -472,10 +643,11 @@
     // Pie
     h += '<div class="pie">Fuente: Albor → registro inmutable de fotos (una por día calendario, ' +
       "leída desde su propia fecha con el criterio de administración, sin rubros 12 / 16 / 17). " +
-      "Una foto vieja no cambia nunca. Todo en millones de pesos con dos decimales, tal cual la base: " +
+      "Una foto vieja no cambia nunca. Todo en millones de pesos (MM) con dos decimales, tal cual la base: " +
       "acá no se suma nada, solo se pinta.<br>" +
       "COMPROMETIDO: hay un documento con un tercero atrás. PRESUPUESTO: lo carga finanzas por " +
-      "fórmula (rubros 04 y 09). Bancos: saldo conciliado del día, cambia todos los días y no tiene comprobante.</div>";
+      "fórmula (rubros 04 y 09). Bancos: saldo conciliado del día, cambia todos los días y no tiene comprobante.<br>" +
+      "Colores: verde cierra · ocre hay que mirar · rojo falla. Los importes no llevan color.</div>";
 
     cuerpo.innerHTML = h;
     atar();
@@ -488,8 +660,8 @@
     var d = estado.d, x = estado.det, rubro = estado.rubro;
     if (!rubro) return "";
     var h = "<h2>De qué comprobantes viene · " + esc(rubro) + "</h2>";
-    if (!x || x.cargando) return h + '<p class="nota-dia" style="color:var(--gris)">Cargando comprobantes…</p>';
-    if (x.error) return h + '<div class="aviso">' + esc(x.error) + "</div>";
+    if (!x || x.cargando) return h + '<div class="esqueleto"><p>Cargando comprobantes…</p><div class="bloque" style="width:100%;height:80px"></div></div>';
+    if (x.error) return h + '<div class="aviso"><b>No se pudo cargar el detalle.</b> ' + esc(x.error) + " Volvé a hacer click en el rubro.</div>";
 
     // Stock: qué cambió (solo 04)
     if (x.stock && x.stock.length) {
@@ -506,7 +678,7 @@
         h += "<p><b>" + esc(s.grano) + "</b> (" + dmy(s.fecha_mov) + "): " +
           "de <b>" + n0(s.tn_antes) + "</b> a <b>" + n0(s.tn_despues) + " TN</b>, " +
           "de <b>" + n2(s.mm_antes) + "</b> a <b>" + n2(s.mm_despues) + " MM</b> " +
-          '(<b class="' + (s.delta_mm < 0 ? "neg" : "") + '">' + sig(s.delta_mm) + " MM</b>).<br>" +
+          "(<b>" + sig(s.delta_mm) + " MM</b>).<br>" +
           ef("tonelaje", dTn, "TN", s.efecto_tn_mm) + ef("precio", dPr, "USD/TN", s.efecto_precio_mm) + ef("TC", dTc, "", s.efecto_tc_mm) +
           "</p>";
       });
@@ -527,11 +699,11 @@
       h += '<button class="toggle" id="d-todos">' +
         (estado.detTodos ? "solo los " + DET_VISTA + " más grandes" : "ver todos (" + filas.length + ")") + "</button>";
     }
-    h += '<div class="scroll"><table><thead><tr>' +
-      "<th>Tipo</th><th>Comprobante</th><th>Descripción</th><th>Fecha mov.</th><th>Antes</th><th>Después</th><th>Δ</th>" +
+    h += '<div class="scroll"><table class="cmp"><thead><tr>' +
+      "<th>Comprobante</th><th>Tipo</th><th>Descripción</th><th>Fecha mov.</th><th>Antes<small>MM</small></th><th>Después<small>MM</small></th><th>Δ<small>MM</small></th>" +
       "</tr></thead><tbody>";
     lista.forEach(function (f) {
-      h += "<tr><td>" + esc(f.tipo) + "</td><td>" + esc(f.comprobante) + "</td>" +
+      h += "<tr><td>" + esc(f.comprobante) + "</td><td>" + esc(f.tipo) + "</td>" +
         '<td class="izq">' + esc(f.descripcion) + '<span class="chico" style="display:block">' + esc(f.referente) + "</span></td>" +
         "<td>" + dmy(f.fecha_mov) + "</td>" + tdn(f.antes_mm) + tdn(f.despues_mm) + tds(f.delta_mm) + "</tr>";
     });
@@ -557,6 +729,7 @@
     var cambiar = function (patch) {
       Object.keys(patch).forEach(function (k2) { estado[k2] = patch[k2]; });
       estado.det = null; estado.detTodos = false;
+      esqueleto();
       pedir();
     };
     document.getElementById("s-a").onchange = function () { cambiar({ a: this.value }); };
