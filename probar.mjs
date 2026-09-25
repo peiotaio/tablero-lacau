@@ -73,7 +73,10 @@ async function probarEn(ancho) {
   const pag = await nav.newPage({ viewport: { width: ancho, height: ancho < 600 ? 812 : 900 }, deviceScaleFactor: 2 });
   const errores = [];
   pag.on('pageerror', (e) => errores.push('PAGEERROR: ' + e.message));
-  pag.on('console', (m) => { if (m.type() === 'error') errores.push('CONSOLE: ' + m.text()); });
+  pag.on('console', (m) => {
+    // Un 404 de favicon no es la pagina rota: se ignora (la pagina ya trae un icono vacio).
+    if (m.type() === 'error' && !/favicon/.test(m.location()?.url ?? '')) errores.push('CONSOLE: ' + m.text());
+  });
 
   let destino;
   if (URL_PUBLICADA) {
