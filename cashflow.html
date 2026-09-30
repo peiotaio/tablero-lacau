@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Cash Flow Lacau</title>
+<!-- sin favicon a proposito: un data: vacio evita el 404 de Pages en cada carga -->
+<link rel="icon" href="data:,">
+
+<!--
+  cashflow.html v1 (30/09/2026) — LA WEB NUEVA «DÓNDE TE PARÁS». Vive AL LADO de tabla.html (no la
+  reemplaza ni la toca). Es la maqueta 05 Tablero web/MAQUETA_tablero_v24_2026-09-29.html llevada a
+  datos reales: mismo diseño F2 «Grafito y trigo» (Manrope, fondo papel), mismos textos, mismas
+  pestañas (Saldo proyectado · Cash Flow Hoy · Qué cambió · Granos · Estado de la web) y el mismo
+  comportamiento del selector «Parado el / Mirando al / Contra lo cargado hoy».
+
+  DE DÓNDE SALEN LOS NÚMEROS (edge function `tabla` v9, misma URL que tabla.html, elegida por ?vista=):
+    * ?vista=hoy[&hoy=]                     lo fijo de Saldo proyectado (fechas clave, fin de mes, día 10,
+                                            punto de partida, mínimos) y la matriz de Cash Flow Hoy.
+    * ?vista=dondeteparas&parado=&contra=&mira=[&hoy=][&rubro=]
+                                            el selector: totales, por rubro, cortes, lunes a lunes, avisos.
+    * ?vista=entre&a=&b=&fecha=[&todos=1]   los comprobantes que más movieron entre dos bajadas.
+    * ?vista=contraste                      el sello de arriba (el contraste del día con administración).
+  TODO viene en millones con 2 decimales y con los avisos ya escritos: acá NO se divide, NO se redondea
+  y NO se calculan fechas. La página solo pinta; las columnas de diferencia vienen de la función
+  (cambio, cambio_vs_hoy, cambio_vs_anterior).
+
+  DECISIONES DE PEIO (30/09/2026):
+    1. «Qué cambió» abre con «Parado el» = hoy en las dos puntas (hoy contra hoy, todo en 0,00).
+       Es un estado válido, no un error.
+    2. En Saldo proyectado, el bloque «Fecha elegida» y la franja «contra el lunes» se recalculan con
+       el selector (bajada «Parado el», fecha «Mirando al», bajada «contra»). Nada queda fijo a hoy.
+    3. En celular (< 600 px) la columna «Tipo» del cuadro por rubro se esconde.
+
+  LA CLAVE: igual que tabla.html v9.1. Se acepta por ?k= (link para compartir; se saca de la barra ya
+  mismo con history.replaceState) o por #k= (favoritos), y se recuerda en el aparato (localStorage,
+  clave cf_clave, la misma que tabla.html). Nunca está escrita acá (el watchdog del bot tiene un guardia).
+  #prueba=1 o ?prueba=1: las consultas van con &origen=prueba (probar_cashflow.mjs y el watchdog).
+  #hoy=AAAA-MM-DD o ?hoy=: día congelado para las pruebas (se pasa a las vistas hoy y dondeteparas).
+  Deep link: #tab=cambio&desde=&hasta=&mira=&rubro= (Qué cambió) · #pdesde=&phasta=&pmira= (Saldo proyectado).
+
+  Granos y Estado de la web: cartel «En construcción» (van en el PROMPT 3).
+  Prueba de humo: probar_cashflow.mjs (mismo repo).
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+
+<style>
+/* ---- Diseño F2 «Grafito y trigo» (de la maqueta v24). Verde = entra/mejora, rojo = sale/empeora,
+        dorado = resaltar (máx. 3 por pestaña), grafito = botón elegido. Botones y títulos nunca en
+        verde ni en rojo. ---- */
+*{box-sizing:border-box}
+html{background:#F7F4EE}
+body{margin:0;background:#F7F4EE;color:#26292C;font-family:'Manrope','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:#2F3437}a:hover{color:#15181A}
+button{font:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid #2F3437;outline-offset:2px}
+img{max-width:100%}
+.cf-wrap{max-width:1180px;margin:0 auto;padding:28px 20px 56px;display:flex;flex-direction:column;gap:20px;min-height:100vh}
+.cf-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.cf-cards3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.cf-top{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.cf-g7{grid-template-columns:minmax(0,2fr) minmax(0,1.1fr) repeat(5,minmax(0,1fr));min-width:860px}
+.cf-g7.cf-head > div{white-space:normal}
+.cf-q{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.cf-fm{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+.cf-det{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:8px 16px;font-size:14px}
+.cf-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.cf-tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.cf-tabs button{min-height:44px;padding:10px 18px;border-radius:8px;cursor:pointer;font-size:15px;white-space:nowrap;border:1px solid #D6CFC1;background:#FFFFFF;color:#4A4F54;font-weight:500}
+.cf-tabs button[aria-selected="true"]{border:2px solid #2F3437;background:#2F3437;color:#FFFFFF;font-weight:700}
+.cf-tabs button[aria-selected="false"]:hover{background:#F1ECE0;border-color:#B9B2A4}
+.cf-q button:hover{border-color:#B9B2A4}
+.cf-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cf-span2{grid-column:span 2}
+.cf-row{display:grid;align-items:center;border-bottom:1px solid #E3DDD1;font-variant-numeric:tabular-nums;font-size:14px}
+.cf-row > div{padding:9px 10px;text-align:right;white-space:nowrap}
+.cf-row > div:first-child{text-align:left}
+.cf-head{font-size:12px;letter-spacing:.02em;background:#DEDAD1;color:#26292C;font-weight:700;border-bottom:1px solid #C9C3B6}
+.cf-head > div{background:transparent}
+.cf-g5b{grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr)) minmax(0,1.5fr)}
+.cf-g4{grid-template-columns:minmax(0,3fr) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr)}
+.cf-g11{grid-template-columns:190px repeat(10,minmax(84px,1fr));min-width:1040px}
+.cf-num{font-variant-numeric:tabular-nums}
+.cf-card{padding:0 4px 4px;background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;overflow:hidden}
+.cf-card > h3{margin:0;padding:10px 10px 4px;font-size:16px;font-weight:600;background:#ECE8E0}
+.cf-card > h3 + p,.cf-card > h3 + p + p{background:#ECE8E0;margin:0;padding:0 14px 10px}
+.cf-card .cf-row > div:first-child{padding-left:14px}
+.cf-card2{background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.cf-card2 > h3{margin:-16px -18px 0;padding:12px 18px;background:#ECE8E0;border-bottom:1px solid #E3DDD1;font-size:16px;font-weight:600}
+.cf-caja{background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.cf-seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cf-gl3{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr))}
+.cf-gl4{grid-template-columns:minmax(0,1.3fr) repeat(3,minmax(0,1fr))}
+.cf-only-sm{display:none}
+.cf-chips{display:flex;gap:8px;flex-wrap:wrap}
+.cf-fila-rubro{cursor:pointer}
+.cf-fila-rubro:hover > div{background:#F7F4EE}
+.cf-row.cf-res > div{background:#FDF1D6}
+.cf-row.cf-hoy > div{background:#EFEDE8;font-weight:600}
+.cf-row.cf-sel > div{background:#EFEDE8}
+.cf-row.cf-sel > div:first-child{box-shadow:inset 4px 0 0 #2F3437}
+h1.cf-h1{margin:0;font-size:34px;font-weight:800;line-height:1.1}
+section h2{margin:0;font-size:24px;font-weight:800}
+h3{margin:0;font-size:16px;font-weight:600}
+p{margin:0}
+.cf-gris{color:#5D6166}
+input[type=date]{min-height:44px;padding:8px 12px;border:1px solid #BDB6A6;border-radius:8px;background:#FFFFFF;color:#26292C;font-size:15px;font-family:inherit;max-width:100%}
+.cf-pill{min-height:36px;padding:4px 12px;border-radius:999px;cursor:pointer;font-size:13px;font-weight:600;border:1px solid #2F3437;background:#FFFFFF;color:#2F3437}
+.cf-pill[aria-pressed="true"]{background:#2F3437;color:#FFFFFF}
+.cf-btn{min-height:40px;padding:6px 14px;border:1px solid #2F3437;background:#FFFFFF;color:#2F3437;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+.cf-btn.cf-grande{min-height:44px;padding:8px 16px;font-size:14px}
+.cf-ver{min-height:36px;padding:4px 12px;border:1px solid #2F3437;background:#FFFFFF;color:#2F3437;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600}
+.cf-aviso{margin:0;font-size:13px;padding:8px 12px;background:#FDF1D6;border:1px solid #E9CF95;border-radius:8px;color:#5A3B06}
+.cf-err{margin:0;font-size:14px;color:#B0352A}
+.cf-imp{display:flex;gap:16px;align-items:center;background:#FDF1D6;border:1px solid #E9CF95;border-left:6px solid #C9891C;border-radius:8px;padding:14px 18px}
+.cf-qbtn{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;min-height:44px;border-radius:12px;cursor:pointer;color:#26292C;padding:14px 16px;border:1px solid #D6CFC1;background:#FFFFFF}
+.cf-qbtn.cf-fija{border-color:#C9891C;background:#FDF1D6}
+.cf-qbtn[aria-pressed="true"]{padding:13px 15px;border:2px solid #2F3437;box-shadow:0 0 0 3px rgba(47,52,55,0.12)}
+.cf-fmbtn{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:44px;padding:8px 4px;border-radius:8px;cursor:pointer;border:1px solid #E3DDD1;background:#FFFFFF}
+.cf-fmbtn[aria-pressed="true"]{border:2px solid #2F3437;background:#EFEDE8}
+.cf-tag{font-size:11px;font-weight:600;letter-spacing:.04em;padding:2px 8px;border-radius:999px}
+.cf-tag.presupuesto{background:#E6ECF3;color:#2B4C7E}
+.cf-tag.comprometido{background:#EFEDE8;color:#2F3437}
+.cf-tag.bancos{background:#FFFFFF;border:1px solid #D6CFC1;color:#3F4540;padding:1px 7px}
+.cf-sello{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid #D6CFC1;background:#EFEDE8;color:#15181A;border-radius:999px;cursor:pointer;font-size:14px;font-weight:500;text-align:left}
+.cf-sello i{width:10px;height:10px;border-radius:999px;background:#5D6166;display:inline-block;flex:none}
+.cf-sello.cierra{border-color:#BFD3C7;background:#E4EDE7}.cf-sello.cierra i{background:#237A4B}
+.cf-sello.mirar{border-color:#E9CF95;background:#FDF1D6}.cf-sello.mirar i{background:#C9891C}
+.cf-sello.falla{border-color:#E7B9B2;background:#F9E7E4}.cf-sello.falla i{background:#B0352A}
+.cf-esq{display:flex;flex-direction:column;gap:12px}
+.cf-esq .b{background:linear-gradient(90deg,#E6E3DA,#F2F0EA,#E6E3DA);background-size:200% 100%;animation:cfb 1.2s linear infinite;border-radius:8px}
+@keyframes cfb{to{background-position:-200% 0}}
+.cf-cargando{font-size:13px;color:#5D6166}
+.cf-construccion{background:#FFFFFF;border:1px dashed #B9B2A4;border-radius:12px;padding:28px 22px;display:flex;flex-direction:column;gap:8px}
+footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12px}
+.cf-help{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(20,20,19,0.45);z-index:50;display:flex;justify-content:flex-end}
+.cf-help > div{width:100%;max-width:480px;height:100%;overflow-y:auto;background:#FFFFFF;color:#26292C;padding:24px 26px 40px;display:flex;flex-direction:column;gap:18px}
+.cf-help dl{margin:0;display:grid;grid-template-columns:minmax(0,120px) minmax(0,1fr);gap:6px 12px;font-size:14px}
+.cf-help dt{font-weight:600}.cf-help dd{margin:0}
+.cf-help p{font-size:14px}
+
+@media (max-width:900px){.cf-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.cf-q{grid-template-columns:repeat(3,minmax(0,1fr))}.cf-fm{grid-template-columns:repeat(5,minmax(0,1fr))}.cf-checks{grid-template-columns:minmax(0,1fr)}.cf-cards3{grid-template-columns:minmax(0,1fr)}}
+/* ---- Celular (< 600 px): sin scroll horizontal de página; las tablas se deslizan con la primera
+        columna fija; la columna «Tipo» del cuadro por rubro se esconde (decisión 3). ---- */
+@media (max-width:599px){
+ .cf-wrap{padding:16px 16px 40px;gap:16px}
+ h1.cf-h1{font-size:28px}
+ .cf-hbtns{width:100%}
+ .cf-hbtns button{flex:1 1 auto;justify-content:center;min-height:40px;font-size:13px;padding:6px 10px}
+ section h2{font-size:20px}
+ .cf-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;border-bottom:0;overflow:visible}
+ .cf-tabs button{white-space:normal;border:1px solid #D6CFC1;border-radius:10px;background:#FFFFFF;color:#26292C;font-size:13px;line-height:1.2;padding:8px 6px;min-height:46px}
+ .cf-tabs button[aria-selected="true"]{background:#2F3437;border-color:#2F3437;color:#FFFFFF}
+ .cf-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .cf-cards3{grid-template-columns:minmax(0,1fr)}
+ .cf-top{grid-template-columns:minmax(0,1fr);gap:10px}
+ .cf-q{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .cf-q button{padding:10px 12px}
+ .cf-q button:last-child{grid-column:span 2}
+ .cf-q .cf-medio{font-size:22px}
+ .cf-cards .cf-medio{font-size:19px}
+ .cf-fm{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .cf-det{grid-template-columns:minmax(0,1fr)}
+ .cf-span2{grid-column:auto}
+ .cf-hide-sm{display:none}
+ .cf-row > div{padding:8px 6px;font-size:13px}
+ .cf-row{column-gap:6px}
+ .cf-head > div{white-space:normal;line-height:1.25}
+ .cf-only-sm{display:block}
+ .cf-imp{flex-direction:column;align-items:flex-start;gap:6px;padding:12px 14px}
+ .cf-imp > div:last-child{font-size:15px}
+ .cf-scroll .cf-row > div:first-child{position:sticky;left:0;background:#FFFFFF;z-index:1;white-space:normal}
+ .cf-scroll .cf-head > div:first-child{background:#DEDAD1}
+ .cf-scroll .cf-row.cf-res > div:first-child{background:#FDF1D6}
+ .cf-scroll .cf-row.cf-hoy > div:first-child,.cf-scroll .cf-row.cf-sel > div:first-child{background:#EFEDE8}
+ .cf-g5b{grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr)) auto;min-width:470px}
+ .cf-g5b > div:first-child{white-space:normal}
+ .cf-g4{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);min-width:560px}
+ .cf-gl3{min-width:340px}
+ .cf-gl4{min-width:450px}
+ .cf-g7{grid-template-columns:130px repeat(5,minmax(96px,1fr));min-width:620px}
+ .cf-g7 > div:nth-child(2){display:none}
+ .cf-help > div{max-width:100%}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+(function () {
+  var API = "https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tabla";
+  var hash = new URLSearchParams(location.hash.slice(1));
+  var query = new URLSearchParams(location.search);
+  var app = document.getElementById("app");
+
+  // --- la clave: #k= (favoritos) > ?k= (link para compartir) > la recordada en el aparato ----
+  var LS = "cf_clave";
+  var leerGuardada = function () { try { return localStorage.getItem(LS); } catch (e) { return null; } };
+  var guardar = function (v) { try { localStorage.setItem(LS, v); } catch (e) { /* privado / bloqueado */ } };
+  var olvidar = function () { try { localStorage.removeItem(LS); } catch (e) { /* idem */ } };
+  var k = hash.get("k"), kOrigen = k ? "hash" : null;
+  if (!k && query.get("k")) { k = query.get("k"); kOrigen = "query"; }
+  if (!k) { k = leerGuardada(); kOrigen = k ? "memoria" : null; }
+  // ?k= no se queda en la barra: se saca ya mismo (el resto del deep link vive en el hash).
+  if (query.has("k")) {
+    query.delete("k");
+    var restoQuery = query.toString();
+    try { history.replaceState(null, "", location.pathname + (restoQuery ? "?" + restoQuery : "") + location.hash); } catch (e) { /* noop */ }
+  }
+  if (k) guardar(k);
+  var esFecha = function (s) { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); };
+  // #prueba=1: consultas automáticas (probar_cashflow.mjs, watchdog); la función las anota aparte.
+  var prueba = hash.get("prueba") === "1" || query.get("prueba") === "1";
+  // #hoy=: día congelado para las pruebas (se pasa a las vistas hoy y dondeteparas).
+  var hoyParam = esFecha(hash.get("hoy")) ? hash.get("hoy") : (esFecha(query.get("hoy")) ? query.get("hoy") : null);
+
+  // --- utilidades (las de la maqueta) --------------------------------------------
+  var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+  var iso = function (y, m, d) { return y + "-" + p2(m) + "-" + p2(d); };
+  var ms = function (s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)); };
+  var suma = function (s, n) { var t = new Date(ms(s) + n * 864e5); return iso(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()); };
+  var dow = function (s) { return new Date(ms(s)).getUTCDay(); };
+  var DIA3 = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+  var DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+  var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  var MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  var corta = function (s) { return s ? s.slice(8, 10) + "/" + s.slice(5, 7) : "—"; };
+  var larga = function (s) { return s ? corta(s) + "/" + s.slice(0, 4) : "—"; };
+  var conDia = function (s) { return s ? DIA3[dow(s)] + " " + larga(s) : "—"; };
+  var conDiaLargo = function (s) { return s ? DIAS[dow(s)] + " " + larga(s) : "—"; };
+  var conDiaCorto = function (s) { return conDia(s).replace(/\/20(\d\d)$/, "/$1"); };
+  var mesCorto = function (ym) { return MES3[+ym.slice(5, 7) - 1] + " " + ym.slice(2, 4); };
+  var r2 = function (v) { return Math.round(v * 100) / 100; };
+  var fmt = function (v) {
+    if (v === null || v === undefined) return "s/d";
+    var x = r2(v);
+    var a = Math.abs(x).toFixed(2).split(".");
+    var e = a[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return (x < 0 ? "−" : "") + e + "," + a[1];
+  };
+  var fmtS = function (v) { return (r2(v) > 0 ? "+" : "") + fmt(v); };
+  var miles = function (v) { return (v < 0 ? "−" : "") + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, "."); };
+  // Siempre con ▲/▼ y signo (verde = mejora, rojo = empeora).
+  var FA = function (v) { return (r2(v) > 0 ? "▲ " : (r2(v) < 0 ? "▼ " : "")) + fmtS(v); };
+  var FA2 = function (v) { return v === null || v === undefined ? "s/d" : FA(v); };
+  var esc = function (s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  };
+  var NEG = "#B0352A", POS = "#237A4B", GRIS = "#5D6166", TINTA = "#26292C";
+  var colorV = function (v) { return v !== null && v !== undefined && r2(v) < 0 ? NEG : TINTA; };
+  var colorD = function (v) { return r2(v) < 0 ? NEG : (r2(v) > 0 ? POS : TINTA); };
+  var colV = function (v) { return v === null || v === undefined ? GRIS : colorV(v); };
+  var colD = function (v) { return v === null || v === undefined ? GRIS : colorD(v); };
+  var MEDIO = "font-size: 24px; font-weight: 800; line-height: 1.15; color: ";
+  var GRANDE = "font-size: 26px; font-weight: 800; line-height: 1.15; color: ";
+
+  // --- estado ---------------------------------------------------------------------
+  var TABS = [["venimos", "Saldo proyectado"], ["hecho", "Cash Flow Hoy"], ["cambio", "Qué cambió"], ["granos", "Granos"], ["fiar", "Estado de la web"]];
+  var PRIMERA = "2026-07-14", BANCOS_DESDE = "2026-09-01";
+  var nuevoSel = function () { return { desde: null, hasta: null, mira: null, otro: false, err: "" }; };
+  var S = {
+    tab: TABS.some(function (t) { return t[0] === hash.get("tab"); }) ? hash.get("tab") : "venimos",
+    help: false,
+    hoy: null, hoyError: null,      // ?vista=hoy
+    sello: null,                    // ?vista=contraste
+    P: nuevoSel(),                  // selector de Saldo proyectado
+    Q: nuevoSel(),                  // selector de Qué cambió
+    rubSel: hash.get("rubro") && /^\d{2}A?$/.test(hash.get("rubro")) ? hash.get("rubro") : null,
+    compsTodos: false
+  };
+  var cacheD = {};   // dondeteparas, por parámetros: { data } | { error } | { cargando: true }
+  var cacheE = {};   // entre, ídem
+
+  // --- pedir al servidor ----------------------------------------------------------
+  function traer(p) {
+    p.set("k", k);
+    if (prueba) p.set("origen", "prueba");
+    return fetch(API + "?" + p.toString()).then(function (r) {
+      if (r.status === 401) {
+        if (kOrigen === "memoria") { olvidar(); throw new Error("La clave que recordaba este aparato ya no es válida."); }
+        throw new Error("La clave del link no es válida.");
+      }
+      if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
+      return r.json();
+    });
+  }
+  var queHacer = function (m) {
+    return /clave/i.test(m) ? "Revisá que el link esté entero (lleva <code>?k=…</code> o <code>#k=…</code>). Si la clave cambió, pedí el link nuevo."
+      : /Failed to fetch|NetworkError|Load failed/i.test(m) ? "Parece un problema de conexión: probá de nuevo en un minuto."
+      : "Si vuelve a pasar, avisale a Peio con la hora y este mensaje.";
+  };
+
+  function pedirHoy() {
+    var p = new URLSearchParams({ vista: "hoy" });
+    if (hoyParam) p.set("hoy", hoyParam);
+    S.hoyError = null;
+    traer(p).then(function (d) {
+      S.hoy = d;
+      var H = d.hoy, HZ = d.horizonte;
+      var fechaOk = function (v, lo, hi) { return esFecha(v) && v >= lo && v <= hi ? v : null; };
+      var iniciar = function (s, pre) {
+        // Al abrir: parado hoy, mirando a la fecha fija, contra lo cargado hoy (decisión 1).
+        s.desde = fechaOk(hash.get(pre + "desde"), PRIMERA, H) || H;
+        s.mira = fechaOk(hash.get(pre + "mira"), PRIMERA, HZ) || d.fecha_fija;
+        var hasta = fechaOk(hash.get(pre + "hasta"), PRIMERA, H);
+        s.otro = !!hasta && hasta !== H;
+        s.hasta = s.otro ? hasta : H;
+        if (s.desde > s.hasta) s.desde = s.hasta;
+      };
+      iniciar(S.P, "p"); iniciar(S.Q, "");
+      tick();
+    }).catch(function (e) { S.hoyError = e.message || "El servidor no respondió."; render(); });
+  }
+  // El sello del contraste del día (?vista=contraste, endpoint que ya existía). Una vez.
+  function pedirSello() {
+    traer(new URLSearchParams({ vista: "contraste" }))
+      .then(function (c) {
+        var u = c.bitacora && c.bitacora[0] ? c.bitacora[0] : null;
+        S.sello = { fecha: u ? u.fecha : null, veredicto: u ? u.veredicto : null, al_dia: !!c.al_dia,
+                    interior: u ? u.interior : null, bancos: u ? u.bancos : null, nota: u ? u.nota : null };
+      })
+      .catch(function () { S.sello = { error: true }; })
+      .then(function () { render(); });
+  }
+  var claveD = function (s, rubro) { return [s.desde, s.otro ? s.hasta : S.hoy.hoy, s.mira, rubro || ""].join("|"); };
+  function pedirDonde(s, rubro) {
+    var key = claveD(s, rubro);
+    if (cacheD[key]) return;
+    cacheD[key] = { cargando: true };
+    var p = new URLSearchParams({ vista: "dondeteparas", parado: s.desde, contra: s.otro ? s.hasta : S.hoy.hoy, mira: s.mira, hoy: S.hoy.hoy });
+    if (rubro) p.set("rubro", rubro);
+    traer(p)
+      .then(function (d) { cacheD[key] = { data: d }; })
+      .catch(function (e) { cacheD[key] = { error: e.message || "No se pudo calcular." }; })
+      .then(function () { render(); });
+  }
+  var claveE = function (a, b, fecha, todos) { return [a, b, fecha, todos ? 1 : 0].join("|"); };
+  function pedirEntre(a, b, fecha, todos) {
+    var key = claveE(a, b, fecha, todos);
+    if (cacheE[key]) return;
+    cacheE[key] = { cargando: true };
+    var p = new URLSearchParams({ vista: "entre", a: a, b: b, fecha: fecha });
+    if (todos) p.set("todos", "1");
+    traer(p)
+      .then(function (d) { cacheE[key] = { data: d }; })
+      .catch(function (e) { cacheE[key] = { error: e.message || "No se pudieron leer los comprobantes." }; })
+      .then(function () { render(); });
+  }
+  // Lo que necesita la pestaña abierta, si todavía no está pedido.
+  function asegurar() {
+    if (!S.hoy) return;
+    if (S.tab === "venimos") pedirDonde(S.P);
+    if (S.tab === "cambio") {
+      pedirDonde(S.Q);
+      if (S.rubSel) pedirDonde(S.Q, S.rubSel);
+      var c = cacheD[claveD(S.Q)];
+      if (c && c.data && !c.data.misma_bajada) pedirEntre(c.data.bajada_a.fecha, c.data.bajada_b.fecha, c.data.mira, S.compsTodos);
+    }
+  }
+  function guardarHash() {
+    var p = new URLSearchParams();
+    if (kOrigen === "hash") p.set("k", k);
+    if (S.tab !== "venimos") p.set("tab", S.tab);
+    var H = S.hoy ? S.hoy.hoy : null;
+    var poner = function (s, pre) {
+      if (!s.desde) return;
+      if (s.desde !== H) p.set(pre + "desde", s.desde);
+      if (s.otro && s.hasta !== H) p.set(pre + "hasta", s.hasta);
+      if (s.mira !== S.hoy.fecha_fija) p.set(pre + "mira", s.mira);
+    };
+    poner(S.P, "p"); poner(S.Q, "");
+    if (S.rubSel) p.set("rubro", S.rubSel);
+    if (hoyParam) p.set("hoy", hoyParam);
+    if (prueba) p.set("prueba", "1");
+    var t = p.toString();
+    try { history.replaceState(null, "", location.pathname + location.search + (t ? "#" + t : "")); } catch (e) { /* noop */ }
+  }
+  function tick() { guardarHash(); render(); asegurar(); }
+
+  // El selector: validación como en la maqueta (vista().set). which = 'P' | 'Q'.
+  function setSel(which, campo, v) {
+    var s = S[which], H = S.hoy;
+    var n = { desde: s.desde, hasta: s.otro ? s.hasta : H.hoy, mira: s.mira };
+    n[campo] = v;
+    if (!v) { s.err = "Elegí una fecha."; render(); return; }
+    if (campo !== "mira" && (v < PRIMERA || v > H.hoy)) { s.err = "El día en que te parás va del " + larga(PRIMERA) + " (primera bajada guardada) a hoy."; render(); return; }
+    if (campo === "mira" && (v < PRIMERA || v > H.horizonte)) { s.err = "«Mirando al» va del " + larga(PRIMERA) + " al " + larga(H.horizonte) + " (hasta donde proyecta Albor)."; render(); return; }
+    if (n.desde > n.hasta) { s.err = "«Parado el» tiene que ser anterior o igual al día contra el que comparás."; render(); return; }
+    s.desde = n.desde; s.mira = n.mira; if (s.otro) s.hasta = n.hasta; s.err = "";
+    tick();
+  }
+
+  // --- eventos delegados ------------------------------------------------------------
+  app.addEventListener("click", function (ev) {
+    var el = ev.target.closest("[data-tab],[data-set],[data-otro],[data-help],[data-rubro],[data-comps],[data-reintentar],#olvidar");
+    if (!el) return;
+    if (el.id === "olvidar") { ev.preventDefault(); olvidar(); location.replace(location.pathname); return; }
+    if (el.hasAttribute("data-reintentar")) { S.hoy = null; render(); pedirHoy(); return; }
+    if (el.hasAttribute("data-tab")) {
+      var t = el.getAttribute("data-tab");
+      // «Ver qué cambió» lleva el mismo selector a la otra pestaña.
+      if (el.hasAttribute("data-copiar")) { S.Q.desde = S.P.desde; S.Q.hasta = S.P.hasta; S.Q.otro = S.P.otro; S.Q.mira = S.P.mira; S.Q.err = ""; }
+      S.tab = t; S.help = false; window.scrollTo(0, 0); tick(); return;
+    }
+    if (el.hasAttribute("data-help")) { S.help = el.getAttribute("data-help") === "1"; render(); return; }
+    if (el.hasAttribute("data-set")) { var a = el.getAttribute("data-set").split(":"); setSel(a[0], a[1], a[2]); return; }
+    if (el.hasAttribute("data-otro")) {
+      var b = el.getAttribute("data-otro").split(":"), s = S[b[0]];
+      if (b[1] === "1") { s.otro = true; s.hasta = s.hasta || S.hoy.hoy; } else { s.otro = false; s.hasta = S.hoy.hoy; s.err = ""; }
+      tick(); return;
+    }
+    if (el.hasAttribute("data-rubro")) { var r = el.getAttribute("data-rubro"); S.rubSel = S.rubSel === r ? null : r; tick(); return; }
+    if (el.hasAttribute("data-comps")) { S.compsTodos = el.getAttribute("data-comps") === "todos"; tick(); return; }
+  });
+  app.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (el.hasAttribute && el.hasAttribute("data-set")) { var a = el.getAttribute("data-set").split(":"); setSel(a[0], a[1], el.value); }
+  });
+
+  // --- piezas ------------------------------------------------------------------------
+  function selloHTML() {
+    var s = S.sello;
+    var cls = "", txt;
+    if (!s) txt = "Contraste con administración…";
+    else if (s.error) txt = "Contraste sin leer";
+    else if (!s.fecha) txt = "Sin contraste todavía";
+    else {
+      var v = String(s.veredicto || "").toUpperCase();
+      var cuando = s.al_dia ? "hoy" : "el " + corta(s.fecha);
+      if (v === "CIERRA") { cls = "cierra"; txt = "Verificado " + cuando + ": coincide con administración"; }
+      else if (v === "REVISAR" || v === "CASI" || v === "HORIZONTE") { cls = "mirar"; txt = "Verificado " + cuando + ": " + v.toLowerCase() + " · hay algo para revisar"; }
+      else { cls = "falla"; txt = "Verificado " + cuando + ": " + (v || "sin veredicto").toLowerCase(); }
+    }
+    return '<button type="button" class="cf-sello ' + cls + '" data-tab="fiar" id="cf-sello" title="' + esc(s && s.nota ? s.nota : "") + '"><i></i><span>' + esc(txt) + "</span></button>";
+  }
+  function cabecera() {
+    var H = S.hoy;
+    var sub = H ? "Datos de Albor del " + conDiaLargo(H.hoy).toLowerCase() + (H.bajada_hoy && H.bajada_hoy.hora_ar ? " (bajados a las " + esc(H.bajada_hoy.hora_ar) + ")" : "") +
+      " · Proyección hasta el " + larga(H.horizonte) + " · En millones de pesos (MM)" : "Cargando los datos de Albor…";
+    return '<header style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;">' +
+      '<div style="display: flex; flex-direction: column; gap: 6px;">' +
+        '<div style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; color: #5D6166;">LACAU Y CÍA S.A. · CASH FLOW</div>' +
+        '<h1 class="cf-h1">Cash Flow</h1>' +
+        '<div id="cf-sub" style="font-size: 14px; color: #5D6166;">' + sub + "</div>" +
+      "</div>" +
+      '<div class="cf-hbtns" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">' + selloHTML() +
+        '<button type="button" data-help="1" style="display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 16px; border: 1px solid #2F3437; background: #FFFFFF; color: #2F3437; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 600;">' +
+        '<span style="width: 20px; height: 20px; border-radius: 999px; border: 1.5px solid #2F3437; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1;">?</span><span>¿Cómo se lee?</span></button>' +
+      "</div></header>";
+  }
+  function tabs() {
+    return '<div class="cf-tabs" role="tablist" aria-label="Secciones del tablero">' + TABS.map(function (t) {
+      return '<button type="button" role="tab" aria-selected="' + (S.tab === t[0] ? "true" : "false") + '" data-tab="' + t[0] + '">' + t[1] + "</button>";
+    }).join("") + "</div>";
+  }
+  function esqueleto() {
+    var b = function (w, h) { return '<div class="b" style="width:' + w + ";height:" + h + 'px"></div>'; };
+    return '<div class="cf-esq" id="esqueleto"><p class="cf-cargando">Cargando la bajada de hoy…</p>' + b("60%", 28) + b("100%", 70) + b("100%", 160) + b("100%", 220) + "</div>";
+  }
+  function errorHTML(msg) {
+    return '<div class="cf-aviso" role="alert" id="cf-error"><b>No se pudo cargar.</b> ' + esc(msg) + " " + queHacer(msg) +
+      ' <button type="button" class="cf-btn" data-reintentar="1" style="margin-left: 8px;">Reintentar</button></div>';
+  }
+  function avisos(lista) {
+    return (lista || []).map(function (a) { return '<p class="cf-aviso">' + esc(a) + "</p>"; }).join("");
+  }
+  var pill = function (which, campo, d, label, cur) {
+    return '<button type="button" class="cf-pill" aria-pressed="' + (cur === d ? "true" : "false") + '" data-set="' + which + ":" + campo + ":" + d + '">' + esc(label) + "</button>";
+  };
+  var etiquetaContra = function (hasta) { return hasta === S.hoy.hoy ? "hoy " + corta(hasta) : "el " + corta(hasta); };
+  var pl = function (d) { return d === S.hoy.hoy ? "Parado hoy " + corta(d) : "Parado el " + corta(d); };
+
+  // El selector «Dónde te parás» (el mismo en Saldo proyectado y en Qué cambió), con sus tarjetas.
+  function selectorHTML(which, s, r, ids, conTitulo) {
+    var H = S.hoy, hasta = s.otro ? s.hasta : H.hoy;
+    var d = r && r.data ? r.data : null;
+    var quick = H.fechas_clave.map(function (q) { return q.fecha; });
+    var h = '<div class="cf-caja" id="cf-sel-' + which + '">';
+    if (conTitulo) {
+      h += '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Dónde te parás</h3>' +
+        '<p style="font-size: 14px; color: #5D6166;"><b style="color: #26292C;">La fecha es dónde te parás, no hacia dónde mirás.</b> Elegí en qué día de carga te parás y qué fecha mirás, para atrás o para adelante. Si la fecha todavía no había llegado, ves lo proyectado con lo cargado ese día; si ya había pasado, lo que realmente hubo. Se compara contra lo cargado hoy, salvo que elijas otro día.</p></div>';
+    }
+    h += '<div style="display: flex; gap: 20px 28px; align-items: flex-start; flex-wrap: wrap;">' +
+      '<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">' +
+        '<label for="' + ids.desde + '" style="font-size: 13px; font-weight: 600;">Parado el <span style="font-weight: 400; color: #5D6166;">· día de carga en Albor</span></label>' +
+        '<input id="' + ids.desde + '" type="date" min="' + PRIMERA + '" max="' + H.hoy + '" value="' + s.desde + '" data-set="' + which + ':desde">' +
+        '<div role="group" aria-label="Atajos para Parado el" style="display: flex; gap: 6px; flex-wrap: wrap;">' +
+          pill(which, "desde", H.hoy, "Hoy", s.desde) + pill(which, "desde", suma(H.hoy, -1), "Ayer", s.desde) + pill(which, "desde", suma(H.hoy, -7), "Hace una semana", s.desde) +
+          pill(which, "desde", BANCOS_DESDE, corta(BANCOS_DESDE) + " (primer día con saldo de bancos)", s.desde) +
+        "</div></div>" +
+      '<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">' +
+        '<label for="' + ids.mira + '" style="font-size: 13px; font-weight: 600;">Mirando al <span style="font-weight: 400; color: #5D6166;">· la fecha que querés ver, para atrás o para adelante</span></label>' +
+        '<input id="' + ids.mira + '" type="date" min="' + PRIMERA + '" max="' + H.horizonte + '" value="' + s.mira + '" data-set="' + which + ':mira">' +
+        '<div role="group" aria-label="Atajos para Mirando al" style="display: flex; gap: 6px; flex-wrap: wrap;">' +
+          pill(which, "mira", suma(H.hoy, -7), "Hace una semana", s.mira) + pill(which, "mira", H.hoy, "Hoy", s.mira) +
+          quick.map(function (q) { return pill(which, "mira", q, corta(q) + (q === H.fecha_fija ? " ★" : ""), s.mira); }).join("") +
+        "</div></div></div>";
+    h += '<div style="display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid #E3DDD1;">' +
+      '<span class="cf-num" style="font-size: 14px; font-weight: 600;">Contra lo cargado ' + (hasta === H.hoy ? "hoy, " + conDia(hasta) : "el " + conDia(hasta)) + ".</span>" +
+      (s.otro ? '<button type="button" class="cf-btn" data-otro="' + which + ':0">Volver a hoy</button>'
+              : '<button type="button" class="cf-btn" data-otro="' + which + ':1">Comparar contra otro día</button>') + "</div>";
+    if (s.otro) {
+      h += '<div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">' +
+        '<label for="' + ids.hasta + '" style="font-size: 13px; font-weight: 600;">Contra lo cargado el <span style="font-weight: 400; color: #5D6166;">· otro día de carga en Albor</span></label>' +
+        '<input id="' + ids.hasta + '" type="date" min="' + PRIMERA + '" max="' + H.hoy + '" value="' + s.hasta + '" data-set="' + which + ':hasta">' +
+        '<div role="group" aria-label="Atajos para Contra lo cargado el" style="display: flex; gap: 6px; flex-wrap: wrap;">' +
+          pill(which, "hasta", H.hoy, "Hoy", hasta) + pill(which, "hasta", suma(H.hoy, -1), "Ayer", hasta) + pill(which, "hasta", suma(H.hoy, -7), "Hace una semana", hasta) +
+        "</div></div>";
+    }
+    if (s.err) h += '<p role="alert" class="cf-err">' + esc(s.err) + "</p>";
+    if (r && r.error) h += '<p role="alert" class="cf-err">' + esc(r.error) + "</p>";
+    if (r && r.cargando) h += '<p class="cf-cargando" aria-live="polite">Calculando…</p>';
+    if (d) h += avisos(d.avisos);
+
+    // Las cuatro tarjetas: parado en A, parado en B, cambió, punto más bajo.
+    if (d) {
+      var ka = d.bajada_a.fecha, kb = d.bajada_b.fecha, mira = d.mira;
+      var queEs = function (kk) { return mira >= kk ? "proyectado al " + corta(mira) + " con lo cargado ese día" : "ya había pasado: lo que realmente hubo el " + corta(mira); };
+      var lo = d.minimo_entre.desde, hi = d.minimo_entre.hasta;
+      var mB = d.minimo_b, mA = d.minimo_a;
+      var tarjeta = function (titulo, v, style, txt, id) {
+        return '<div id="' + id + '" style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: #FFFFFF; border: 1px solid #E3DDD1; border-radius: 10px;">' +
+          '<span style="font-size: 13px; font-weight: 600;">' + esc(titulo) + '</span><span class="cf-num cf-medio" style="' + style + '">' + v + "</span>" +
+          '<span class="cf-num" style="font-size: 12px; color: #5D6166;">' + esc(txt) + "</span></div>";
+      };
+      h += '<div class="cf-cards" id="cf-res-' + which + '">' +
+        tarjeta(pl(s.desde), fmt(d.total_a), MEDIO + colV(d.total_a) + ";", queEs(ka), "cf-res-" + which + "-a") +
+        tarjeta(pl(hasta), fmt(d.total_b), MEDIO + colV(d.total_b) + ";", queEs(kb), "cf-res-" + which + "-b") +
+        tarjeta("Cambió", FA2(d.cambio), MEDIO + colD(d.cambio) + ";", "parado el " + corta(hasta) + " menos parado el " + corta(s.desde), "cf-res-" + which + "-dif") +
+        tarjeta("Punto más bajo entre el " + corta(lo) + " y el " + corta(hi), mB ? fmt(mB.valor) : "s/d", MEDIO + (mB ? colorV(mB.valor) : GRIS) + ";",
+          (mB ? conDia(mB.fecha) : "sin dato") + ", parado " + (hasta === H.hoy ? "hoy" : "el " + corta(hasta)) +
+          (ka !== kb ? " · parado el " + corta(s.desde) + ": " + (mA ? fmt(mA.valor) + " el " + corta(mA.fecha) : "s/d") : ""), "cf-res-" + which + "-min") +
+        "</div>";
+    }
+    return h + "</div>";
+  }
+  // Días 10 y fines de mes (cortes) del selector. conVer: botón «Ver» (solo en Saldo proyectado, contra hoy y fechas futuras).
+  function cortesHTML(which, s, d, conVer) {
+    var H = S.hoy, hasta = s.otro ? s.hasta : H.hoy;
+    var tit = d.mira < hasta ? "Días 10 y fines de mes entre el " + corta(d.mira) + " y el " + corta(hasta) : "Días 10 y fines de mes hasta el " + corta(d.mira);
+    var filas = d.cortes.map(function (c) {
+      var puedeVer = conVer && d.bajada_b.fecha === H.hoy && c.fecha >= H.hoy && c.fecha !== s.mira;
+      return '<div class="cf-row cf-g5b"><div style="font-weight: 500; white-space: normal;">' +
+        esc(conDiaCorto(c.fecha) + " · " + (c.tipo === "fecha fija" ? "★ fecha fija" : c.tipo) + (c.real ? " · real" : "")) + "</div>" +
+        '<div style="color: ' + colV(c.a) + ';">' + fmt(c.a) + "</div>" +
+        '<div style="font-weight: 600; color: ' + colV(c.b) + ';">' + fmt(c.b) + "</div>" +
+        '<div style="font-weight: 600; color: ' + colD(c.cambio) + ';">' + FA2(c.cambio) + "</div>" +
+        '<div style="display: flex; justify-content: flex-end; padding: 4px 6px;">' +
+        (puedeVer ? '<button type="button" class="cf-ver" data-set="' + which + ":mira:" + c.fecha + '" aria-label="Ver el detalle del ' + larga(c.fecha) + '">Ver</button>' : "") +
+        "</div></div>";
+    }).join("");
+    var cab = '<div class="cf-row cf-g5b cf-head"><div>Fecha</div><div>' + esc(pl(s.desde)) + "</div><div>" + esc(pl(hasta)) + "</div><div>Cambió</div><div></div></div>";
+    return { titulo: tit, html: '<div class="cf-scroll">' + cab + filas + "</div>" };
+  }
+
+  // ---- Saldo proyectado ----
+  function saldoProyectado() {
+    var H = S.hoy, s = S.P, r = cacheD[claveD(s)], d = r && r.data ? r.data : null;
+    var camp = H.fecha_fija, hoyY = +H.hoy.slice(0, 4);
+    var nomFija = function (x) { return +x.slice(8, 10) + " de " + MESES[+x.slice(5, 7) - 1]; };
+    var qCamp = H.fechas_clave.filter(function (q) { return q.fecha === camp; })[0] || null;
+    var vCamp = qCamp ? qCamp.hoy : null;
+    var mCamp = H.minimo_hasta_fija, mTot = H.minimo_hasta_horizonte;
+    var C = H.bajada_contra;
+    var contraNom = C ? (C.motivo === "lunes anterior" ? "el lunes " + corta(C.fecha) : "ayer " + corta(C.fecha)) : null;
+    var sinLun = C ? "sin dato: lo cargado ese día llegaba hasta el " + larga(C.horizonte) : "sin dato";
+    var h = '<section role="tabpanel" aria-label="Saldo proyectado" style="display: flex; flex-direction: column; gap: 20px;">';
+    h += '<div style="display: flex; flex-direction: column; gap: 6px;"><h2>Saldo de caja por fecha</h2>' +
+      '<p class="cf-gris" style="font-size: 14px;">Cuánta plata habría en la caja cada día si se cumple todo lo cargado en Albor: parte de lo que hay hoy y suma lo que entra y resta lo que sale hasta esa fecha. Negativo = faltaría plata.</p>' +
+      '<p class="cf-num" id="cf-partida" style="font-size: 14px;"><span style="font-weight: 600;">Punto de partida hoy: ' + fmt(H.partida.total) + ' MM</span><span style="color: #5D6166;"> = ' + fmt(H.partida.bancos) + " en bancos + " + fmt(H.partida.vencidos) + " de cobros y pagos vencidos sin resolver (se cuentan como de hoy)</span></p></div>";
+    h += avisos(H.avisos);
+    // LO IMPORTANTE (dorado 1 de 3)
+    h += '<div class="cf-imp" id="cf-imp"><div style="font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #8A5A0C; white-space: nowrap;">LO IMPORTANTE</div>' +
+      '<div class="cf-num" style="font-size: 16px; line-height: 1.45;">Al ' + nomFija(camp) + " (" + conDia(camp) + ') el saldo proyectado es <b style="white-space: nowrap; color: ' + colV(vCamp) + ';">' + fmt(vCamp) + "</b>." +
+      (mCamp ? ' El punto más bajo hasta ahí es <b style="white-space: nowrap; color: ' + colorV(mCamp.valor) + ';">' + fmt(mCamp.valor) + "</b>, el " + conDia(mCamp.fecha) + "." : "") + "</div></div>";
+    // Fechas clave
+    h += '<div style="display: flex; flex-direction: column; gap: 10px;"><div style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;"><h3>Fechas clave</h3>' +
+      '<span style="font-size: 12px; color: #5D6166;">Saldo proyectado en los próximos días 10 (pago de arrendamientos), fines de mes y la fecha fija (★). Abajo, cuánto cambió contra lo cargado ' + (C && C.motivo === "lunes anterior" ? "el lunes" : "ayer") + '. Tocá una para verla en «Fecha elegida».</span></div><div class="cf-q" id="cf-quick">';
+    h += H.fechas_clave.map(function (q) {
+      var on = s.mira === q.fecha;
+      var lunesTxt = q.hoy === null ? "Lo cargado hoy llega hasta el " + larga(H.horizonte)
+        : (!C ? "" : q.contra === null ? "Con lo cargado " + contraNom + ": " + sinLun : "Con lo cargado " + contraNom + " daba: " + fmt(q.contra));
+      var hayD = q.cambio !== null && q.cambio !== undefined;
+      return '<button type="button" class="cf-qbtn' + (q.fija ? " cf-fija" : "") + '" aria-pressed="' + (on ? "true" : "false") + '" data-set="P:mira:' + q.fecha + '">' +
+        '<span style="font-size: 13px; font-weight: 600;">' + (q.fija ? "★ " : "") + esc(q.titulo) + "</span>" +
+        '<span style="font-size: 12px; color: #5D6166;">' + esc(conDia(q.fecha) + " · " + q.nota) + "</span>" +
+        '<span class="cf-num cf-medio" style="font-size: 28px; font-weight: 800; line-height: 1.15; color: ' + colV(q.hoy) + ';">' + fmt(q.hoy) + "</span>" +
+        '<span class="cf-num" style="font-size: 12px; color: #5D6166;">' + esc(lunesTxt) + "</span>" +
+        '<span class="cf-num" style="font-size: 13px; font-weight: 600; color: ' + (hayD ? colorD(q.cambio) : GRIS) + ';">' + (hayD ? FA(q.cambio) + " contra " + (C.motivo === "lunes anterior" ? "el lunes" : "ayer") : "") + "</span></button>";
+    }).join("");
+    h += "</div></div>";
+    // Dónde te parás (selector P) + cortes
+    var selHTML = selectorHTML("P", s, r, { desde: "cf-pdesde", mira: "cf-pmira", hasta: "cf-phasta" }, true);
+    if (d) {
+      var co = cortesHTML("P", s, d, true);
+      selHTML = selHTML.replace(/<\/div>$/, "") + '<div><div style="font-size: 13px; font-weight: 600; padding: 4px 0;">' + esc(co.titulo) + "</div>" + co.html + "</div></div>";
+    }
+    h += selHTML;
+    // FECHA ELEGIDA: se recalcula con el selector (decisión 2).
+    h += '<div aria-live="polite" id="cf-det" style="background: #FFFFFF; border: 2px solid #2F3437; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">';
+    if (d) {
+      var qSel = H.fechas_clave.filter(function (q) { return q.fecha === d.mira; })[0];
+      var hasta = s.otro ? s.hasta : H.hoy;
+      var ka = d.bajada_a.fecha, mA = d.minimo_a;
+      h += '<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;"><span style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; color: #2F3437;">FECHA ELEGIDA</span>' +
+        '<span id="cf-det-fecha" style="font-size: 18px; font-weight: 600;">' + esc(conDiaLargo(d.mira) + (qSel ? " · " + qSel.titulo.toLowerCase() : "")) + "</span>" +
+        '<span id="cf-det-v" class="cf-num" style="' + GRANDE + colV(d.total_a) + ';">' + fmt(d.total_a) + " MM</span>" +
+        '<span class="cf-num" style="font-size: 13px; color: #5D6166;">' + esc(pl(s.desde).toLowerCase()) + "</span></div>";
+      h += '<div class="cf-det cf-num">' +
+        '<div style="color: #5D6166;">Con lo cargado ' + esc(etiquetaContra(hasta)) + '</div><div id="cf-det-contra">' + (d.total_b === null ? "s/d" : fmt(d.total_b) + " MM · cambió " + FA2(d.cambio)) + "</div>";
+      if (d.mira === H.hoy && ka === H.hoy) {
+        h += '<div style="color: #5D6166;">Lo que entra y sale ese día (neto)</div><div>Es el punto de partida: bancos conciliados ' + fmt(H.partida.bancos) + ", vencidos sin resolver traídos a hoy " + fmtS(H.partida.vencidos) + ".</div>";
+      }
+      h += '<div style="color: #5D6166;">Saldo más bajo entre el ' + corta(ka < d.mira ? ka : d.mira) + " y el " + corta(ka < d.mira ? d.mira : ka) + ", parado " + (ka === H.hoy ? "hoy" : "el " + corta(ka)) + "</div><div>" +
+        (mA ? fmt(mA.valor) + " MM, " + conDia(mA.fecha) + (mA.fecha === d.mira ? " (esa misma fecha)" : "") : "s/d") + "</div></div>";
+    } else if (r && r.error) {
+      h += '<p class="cf-err" role="alert">' + esc(r.error) + "</p>";
+    } else {
+      h += '<p class="cf-cargando">Calculando la fecha elegida…</p>';
+    }
+    h += "</div>";
+    // Fin de mes y día 10 (de la bajada de hoy)
+    var fmBtn = function (x, label) {
+      return '<button type="button" class="cf-fmbtn" aria-pressed="' + (s.mira === x.fecha ? "true" : "false") + '" aria-label="Saldo al ' + larga(x.fecha) + ": " + fmt(x.hoy) + ' millones" data-set="P:mira:' + x.fecha + '">' +
+        '<span style="font-size: 12px; color: #5D6166;">' + label + '</span><span class="cf-num" style="font-size: 14px; font-weight: 600; color: ' + colV(x.hoy) + ';">' + fmt(x.hoy) + "</span></button>";
+    };
+    h += '<div class="cf-card2"><h3>Saldo a fin de mes</h3><div class="cf-fm" id="cf-finmes">' + H.fin_de_mes.map(function (x) { return fmBtn(x, mesCorto(x.fecha)); }).join("") + "</div></div>";
+    h += '<div class="cf-card2"><h3>Saldo al día 10</h3><div class="cf-fm" id="cf-diez">' + H.dia_10.map(function (x) { return fmBtn(x, "10 " + mesCorto(x.fecha)); }).join("") + "</div></div>";
+    // Para tener en cuenta
+    var tras = mTot && mTot.dia_siguiente ? " Al día siguiente, " + corta(mTot.dia_siguiente.fecha) + ", entran " + fmtS(mTot.dia_siguiente.otros_ingresos) + " de otros ingresos presupuestados (rubro 04)." : "";
+    var se = S.sello;
+    var txtHor = se && !se.error && se.fecha
+      ? "Contraste con administración del " + corta(se.fecha) + ": " + String(se.veredicto || "sin veredicto").toLowerCase() + (se.interior !== null && se.interior !== undefined ? " · diferencia sin bancos " + fmtS(se.interior) + " MM" : "") + (se.bancos !== null && se.bancos !== undefined ? " · bancos " + fmtS(se.bancos) + " (conciliación del día, no se compara)" : "") + "."
+      : "La planilla de administración de hoy todavía no se contrastó.";
+    var big = function (v) { return GRANDE + colV(v) + ";"; };
+    var clave = function (titulo, v, txt, fecha) {
+      return '<button type="button" data-set="P:mira:' + fecha + '" style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; min-height: 44px; padding: 14px 16px; border: 1px solid #D6CFC1; background: #FFFFFF; color: #26292C; border-radius: 12px; cursor: pointer;">' +
+        '<span style="font-size: 13px; font-weight: 600;">' + esc(titulo) + '</span><span class="cf-num" style="' + big(v) + '">' + fmt(v) + "</span>" +
+        '<span class="cf-num" style="font-size: 13px; color: #5D6166;">' + esc(txt) + "</span></button>";
+    };
+    h += '<div style="display: flex; flex-direction: column; gap: 10px;"><h3>Para tener en cuenta</h3><div class="cf-cards3" id="cf-claves">' +
+      (mCamp ? clave("Saldo más bajo hasta el " + nomFija(camp), mCamp.valor, conDia(mCamp.fecha), mCamp.fecha) : "") +
+      (mTot ? clave("Saldo más bajo hasta el " + larga(H.horizonte) + " (hasta donde llega la proyección)", mTot.valor, conDia(mTot.fecha) + "." + tras, mTot.fecha) : "") +
+      clave("Saldo al " + larga(H.horizonte) + " (hasta donde llega la proyección)", H.saldo_horizonte, txtHor, H.horizonte) +
+      "</div></div>";
+    // La franja: se recalcula con el selector (decisión 2).
+    var franja = d ? "Contra lo cargado " + (etiquetaContra(s.otro ? s.hasta : H.hoy)) + ", " + pl(s.desde).toLowerCase() + ", el saldo proyectado al " + larga(d.mira) + " cambió " + FA2(d.cambio) + " MM." : "Calculando…";
+    h += '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #FFFFFF; border: 1px solid #D6CFC1; border-radius: 12px;">' +
+      '<span class="cf-num" id="cf-vslunes" style="font-size: 14px;">' + esc(franja) + '</span><button type="button" class="cf-btn cf-grande" data-tab="cambio" data-copiar="1">Ver qué cambió</button></div>';
+    return h + "</section>";
+  }
+
+  // ---- Qué cambió ----
+  function queCambio() {
+    var H = S.hoy, s = S.Q, r = cacheD[claveD(s)], d = r && r.data ? r.data : null;
+    var rs = S.rubSel;
+    var rR = rs ? cacheD[claveD(s, rs)] : null, dR = rR && rR.data ? rR.data : null;
+    var hasta = s.otro ? s.hasta : H.hoy;
+    var h = '<section role="tabpanel" aria-label="Qué cambió" style="display: flex; flex-direction: column; gap: 20px;">';
+    h += '<div style="display: flex; flex-direction: column; gap: 4px;"><h2>Dónde te parás</h2>' +
+      '<p style="font-size: 14px; color: #5D6166;"><b style="color: #26292C;">La fecha es dónde te parás, no hacia dónde mirás.</b> Elegí en qué día de carga te parás y qué fecha mirás, para atrás o para adelante. Si la fecha todavía no había llegado, ves lo proyectado con lo cargado ese día; si ya había pasado, lo que realmente hubo. Se compara contra lo cargado hoy, salvo que elijas otro día.</p></div>';
+    h += selectorHTML("Q", s, r, { desde: "cf-desde", mira: "cf-mira", hasta: "cf-hasta" }, false);
+    if (!d) return h + "</section>";
+    var ka = d.bajada_a.fecha, kb = d.bajada_b.fecha, cMira = corta(d.mira);
+    var nomRub = function (x) { return x.rubro.slice(0, 2) + " · " + x.etiqueta; };
+    var rangoTxt = corta(s.desde) + " → " + corta(hasta) + ", mirando al " + cMira;
+    var nadaTxt = d.misma_bajada ? "Es la misma carga: no hay cambios." : "Ninguno.";
+    // Los 3 que más mejoran / empeoran (se ordena lo que vino; no se calcula nada).
+    var conCambio = d.rubros.filter(function (x) { return x.cambio !== null; });
+    var suben = conCambio.filter(function (x) { return x.cambio > 0; }).sort(function (p, q) { return q.cambio - p.cambio; }).slice(0, 3);
+    var bajan = conCambio.filter(function (x) { return x.cambio < 0; }).sort(function (p, q) { return p.cambio - q.cambio; }).slice(0, 3);
+    var top = function (titulo, lista, color) {
+      return '<div style="background: #FFFFFF; border: 1px solid #D6CFC1; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;">' +
+        '<div style="font-size: 13px; font-weight: 600;">' + esc(titulo + ", " + rangoTxt) + "</div>" +
+        (lista.length ? lista.map(function (x) { return '<div class="cf-num" style="display: flex; justify-content: space-between; gap: 12px; font-size: 15px;"><span>' + esc(nomRub(x)) + '</span><span style="font-weight: 600; color: ' + color + ';">' + FA(x.cambio) + "</span></div>"; }).join("")
+                      : '<span style="font-size: 13px; color: #5D6166;">' + esc(nadaTxt) + "</span>") + "</div>";
+    };
+    h += '<div class="cf-top">' + top("Los 3 rubros que más mejoran", suben, POS) + top("Los 3 rubros que más empeoran", bajan, NEG) + "</div>";
+    // Por rubro
+    var celda = function (v, peso) { return '<div style="' + (peso ? "font-weight: 600; " : "") + "color: " + colV(v) + ';">' + fmt(v) + "</div>"; };
+    var celdaD = function (v, peso) { return '<div style="' + (peso ? "font-weight: 600; " : "") + "color: " + colD(v) + ';">' + FA2(v) + "</div>"; };
+    h += '<div class="cf-card" id="cf-q-tabla"><h3>Por rubro, mirando al ' + cMira + '</h3>' +
+      '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+      '<div class="cf-row cf-g7 cf-head"><div>Rubro</div><div style="text-align: left;">Tipo</div><div>' + esc(pl(s.desde)) + "</div><div>" + esc(pl(hasta)) + "</div><div>Diferencia</div><div>Saldo hoy " + corta(H.hoy) + "</div><div>Diferencia al " + cMira + " vs. hoy</div></div>";
+    h += d.rubros.map(function (x) {
+      return '<div class="cf-row cf-g7 cf-fila-rubro' + (rs === x.rubro ? " cf-sel" : "") + '" data-rubro="' + x.rubro + '" role="button" tabindex="0">' +
+        '<div style="font-weight: 500; white-space: normal;">' + esc(nomRub(x)) + '</div><div style="text-align: left;"><span class="cf-tag ' + x.tipo + '">' + x.tipo + "</span></div>" +
+        celda(x.a) + celda(x.b) + celdaD(x.cambio, true) + celda(x.hoy) + celdaD(x.cambio_vs_hoy, true) + "</div>";
+    }).join("");
+    h += '<div class="cf-row cf-g7" id="cf-q-total" style="border-top: 2px solid #26292C; font-weight: 600;"><div>Saldo total</div><div></div>' +
+      celda(d.total_a) + celda(d.total_b) + celdaD(d.cambio) + celda(d.saldo_hoy) + celdaD(d.cambio_vs_hoy) + "</div></div>" +
+      '<p style="margin: 8px 10px 10px; font-size: 12px; color: #5D6166;">Las dos primeras columnas son el saldo de ese rubro al ' + cMira + " parado en cada día de carga: proyectado si la fecha todavía no había llegado, real si ya había pasado. «Saldo hoy» es lo que hay hoy (bancos + cobros y pagos vencidos). La última columna es cuánto le falta o le sobra al " + cMira + " contra hoy. Tocá un rubro para verlo lunes a lunes abajo.</p></div>";
+    // Cortes
+    var co = cortesHTML("Q", s, d, false);
+    h += '<div class="cf-card"><h3>' + esc(co.titulo) + '</h3><p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p>' + co.html + "</div>";
+    // Comprobantes (?vista=entre): contra cualquier par de días y cualquier fecha.
+    h += '<div class="cf-card" id="cf-comps"><h3>¿Por qué cambió? Comprobantes que más movieron</h3>' +
+      '<p style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Qué se cargó, se borró o cambió de fecha en Albor entre los dos días. No es plata que entró o salió: son cambios en la carga.</p>';
+    if (d.misma_bajada) {
+      h += '<p style="padding: 4px 10px 12px; font-size: 13px; color: #5D6166;">Estás parado en la misma carga que la que comparás. Mové «Parado el» para atrás para ver qué cambió.</p>';
+    } else {
+      var re = cacheE[claveE(ka, kb, d.mira, S.compsTodos)], e = re && re.data ? re.data : null;
+      if (!re || re.cargando) h += '<p class="cf-cargando" style="padding: 4px 10px 12px;">Buscando los comprobantes…</p>';
+      else if (re.error) h += '<p class="cf-err" role="alert" style="padding: 4px 10px 12px;">' + esc(re.error) + "</p>";
+      else if (e.comprobantes === null) h += '<div style="padding: 4px 10px 12px;">' + avisos(e.avisos) + "</div>";
+      else {
+        var que = function (t, a, b) {
+          var f = a === b ? corta(a) : corta(a) + " a " + corta(b);
+          if (t === "ALTA") return "Se cargó · " + f;
+          if (t === "BAJA") return "Se dio de baja · era del " + f;
+          if (a === b) return "Cambió el importe · " + corta(a);
+          return "Cambió de fecha o de importe · entre el " + corta(a) + " y el " + corta(b);
+        };
+        h += '<div style="padding: 0 10px 6px;">' + avisos(e.avisos) + "</div>";
+        h += '<p class="cf-num" style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Entre lo cargado el ' + corta(ka) + " y " + (kb === H.hoy ? "hoy" : "el " + corta(kb)) + " cambiaron " + miles(e.n_comprobantes) + " comprobantes, que mueven " + fmtS(e.total) + " MM el saldo al " + cMira + "; la conciliación de bancos movió " + fmtS(e.bancos) + ". " +
+          (e.comprobantes.length ? "Estos son los " + e.mostrados + " que más pesan:" : "Ningún comprobante cambió el saldo a esa fecha.") + "</p>";
+        if (e.comprobantes.length) {
+          h += '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+            '<div class="cf-row cf-g4 cf-head"><div>Comprobante</div><div class="cf-hide-sm" style="text-align: left;">Rubro</div><div>Qué pasó (fecha de cobro o pago)</div><div>Efecto al ' + cMira + "</div></div>" +
+            e.comprobantes.map(function (c) {
+              return '<div class="cf-row cf-g4"><div style="white-space: normal;"><div style="font-weight: 500;">' + esc(c.descripcion) + '</div><div style="font-size: 12px; color: #5D6166;">' + esc(c.referente) + "</div></div>" +
+                '<div class="cf-hide-sm" style="text-align: left; white-space: normal; font-size: 13px; color: #5D6166;">' + esc(c.rubro.slice(0, 2) + " · " + (c.etiqueta || c.nombre)) + "</div>" +
+                '<div style="white-space: normal; font-size: 13px;">' + esc(que(c.tipos, c.fecha_min, c.fecha_max)) + "</div>" +
+                '<div style="font-weight: 600; color: ' + colorD(c.efecto) + ';">' + FA(c.efecto) + "</div></div>";
+            }).join("") + "</div>";
+          if (e.n_comprobantes > e.mostrados) h += '<div style="padding: 10px 10px 6px;"><button type="button" class="cf-btn" data-comps="todos">Ver los ' + miles(e.n_comprobantes) + " comprobantes</button></div>";
+          else if (S.compsTodos) h += '<div style="padding: 10px 10px 6px;"><button type="button" class="cf-btn" data-comps="primeros">Ver solo los que más pesan</button></div>';
+        }
+      }
+    }
+    h += "</div>";
+    // Lunes a lunes
+    var lunes = dR ? dR.lunes : d.lunes;
+    var rubEt = rs ? (d.rubros.filter(function (x) { return x.rubro === rs; }).map(nomRub)[0] || rs) : "";
+    h += '<div class="cf-card" id="cf-lunes"><h3>Lunes a lunes, mirando al ' + cMira + (rs ? " · " + esc(rubEt) : "") + "</h3>" +
+      '<p style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Qué saldo daba el ' + cMira + ", parado cada lunes (si ya había pasado, lo que realmente hubo). Resaltados, los días elegidos que caen en lunes. Antes del 01/09 no hay total (esas bajadas no traían bancos)." + (rs ? " Última columna: " + esc(rubEt) + " (tocalo de nuevo para sacarla)." : "") + "</p>" +
+      '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+      '<div class="cf-row ' + (rs ? "cf-gl4" : "cf-gl3") + ' cf-head"><div>Parado el</div><div>Saldo al ' + cMira + "</div><div>Cambio vs. lunes anterior</div>" + (rs ? '<div style="white-space: normal;">' + esc(rubEt) + "</div>" : "") + "</div>";
+    h += lunes.map(function (l) {
+      var cls = l.es_hoy ? " cf-hoy" : (l.fecha === ka || l.fecha === kb ? " cf-res" : "");
+      var rv = rs ? (dR ? l.rubro : undefined) : undefined;
+      return '<div class="cf-row ' + (rs ? "cf-gl4" : "cf-gl3") + cls + '"><div style="font-weight: 500;">' + (l.es_hoy ? "Hoy " : "") + esc(conDiaCorto(l.fecha)) + "</div>" +
+        '<div style="font-weight: 600; color: ' + colV(l.total) + ';">' + fmt(l.total) + "</div>" +
+        '<div style="color: ' + colD(l.cambio_vs_anterior) + ';">' + (l.cambio_vs_anterior === null ? "—" : FA(l.cambio_vs_anterior)) + "</div>" +
+        (rs ? '<div style="color: ' + colV(rv === undefined ? null : rv) + ';">' + (rv === undefined ? "…" : fmt(rv)) + "</div>" : "") + "</div>";
+    }).join("");
+    h += "</div></div>";
+    return h + "</section>";
+  }
+
+  // ---- Cash Flow Hoy ----
+  function cashFlowHoy() {
+    var H = S.hoy, M = H.matriz;
+    var hy = +H.hoy.slice(0, 4);
+    var finCamp = H.hoy <= hy + "-11-30" ? hy + "-11" : (hy + 1) + "-11";    // sombreado: campaña siguiente (después del 30/11)
+    var zona = function (mes) { return mes > finCamp ? "background: #F3F0E8;" : ""; };
+    var celda = function (v, mes, extra) {
+      var cero = v === null || v === undefined || Math.abs(v) < 0.005;
+      return '<div style="' + zona(mes) + (!cero && v < 0 ? "color: " + NEG + ";" : "") + (extra || "") + '">' + (cero ? "·" : fmt(v)) + "</div>";
+    };
+    var h = '<section role="tabpanel" aria-label="Cash Flow Hoy" style="display: flex; flex-direction: column; gap: 20px;">';
+    h += '<div style="display: flex; flex-direction: column; gap: 4px;"><h2>Entradas y salidas por mes</h2>' +
+      '<p class="cf-num" style="font-size: 14px; font-weight: 600;">Con lo cargado en Albor el ' + conDiaLargo(H.hoy).toLowerCase() + (H.bajada_hoy && H.bajada_hoy.hora_ar ? " (bajado a las " + esc(H.bajada_hoy.hora_ar) + ")" : "") + ".</p>" +
+      '<p class="cf-gris" style="font-size: 14px;">Lo que entra (+) y sale (−) cada mes, por rubro, según lo cargado hoy en Albor. Es la misma planilla que arma administración. Sombreado: campaña siguiente (después del 30/11).</p></div>';
+    h += '<div class="cf-card" id="cf-matriz"><p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+      '<div class="cf-row cf-g11 cf-head"><div style="position: sticky; left: 0; background: #DEDAD1;">Rubro</div>' +
+      M.meses.map(function (m) { return '<div style="' + (m > finCamp ? "background: #D3CEC3;" : "") + '">' + mesCorto(m) + "</div>"; }).join("") + "</div>";
+    h += M.grupos.map(function (g) {
+      return '<div style="min-width: 1040px; padding: 12px 10px 6px; background: #F7F4EE; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: #5D6166; border-bottom: 1px solid #E3DDD1;"><span style="position: sticky; left: 10px;">' + esc(g.titulo) + "</span></div>" +
+        g.filas.map(function (f) {
+          return '<div class="cf-row cf-g11"><div style="position: sticky; left: 0; background: #FFFFFF; font-weight: 500;">' + esc(f.rubro.slice(0, 2) + " · " + f.etiqueta) + "</div>" +
+            f.celdas.map(function (v, i) { return celda(v, M.meses[i]); }).join("") + "</div>";
+        }).join("");
+    }).join("");
+    h += '<div class="cf-row cf-g11" style="border-top: 2px solid #26292C;"><div style="position: sticky; left: 0; background: #FFFFFF; font-weight: 600;">Entra − sale en el mes</div>' +
+      M.neto.map(function (v, i) { return celda(v, M.meses[i], "font-weight: 600;"); }).join("") + "</div>";
+    h += '<div class="cf-row cf-g11" id="cf-acum"><div style="position: sticky; left: 0; background: #FFFFFF; font-weight: 600;">Saldo a fin de mes</div>' +
+      M.acumulado.map(function (v, i) { return celda(v, M.meses[i], "font-weight: 600;"); }).join("") + "</div></div></div>";
+    h += '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #FFFFFF; border: 1px solid #D6CFC1; border-radius: 12px;">' +
+      '<span style="font-size: 14px;">· = sin movimiento. «Entra − sale en el mes» de ' + MESES[+H.hoy.slice(5, 7) - 1] + " incluye el punto de partida de hoy; la fila Bancos de " + MESES[+H.hoy.slice(5, 7) - 1] + " es el saldo conciliado de hoy más los movimientos bancarios hasta el fin del mes. Stock, gastos comerciales y cosecha por grano: en la pestaña Granos.</span>" +
+      '<button type="button" class="cf-btn cf-grande" data-tab="granos">Ver granos</button></div>';
+    return h + "</section>";
+  }
+
+  // ---- Granos y Estado de la web: en construcción (PROMPT 3) ----
+  function enConstruccion(nombre, titulo, texto) {
+    return '<section role="tabpanel" aria-label="' + esc(nombre) + '" style="display: flex; flex-direction: column; gap: 20px;">' +
+      '<div style="display: flex; flex-direction: column; gap: 4px;"><h2>' + esc(titulo) + '</h2><p class="cf-gris" style="font-size: 14px;">' + esc(texto) + "</p></div>" +
+      '<div class="cf-construccion" id="cf-construccion"><div style="font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #5D6166;">EN CONSTRUCCIÓN</div>' +
+      '<p style="font-size: 15px; font-weight: 600;">Esta pestaña todavía no tiene datos.</p>' +
+      '<p class="cf-gris" style="font-size: 14px;">Llega en el próximo paso de la web. Mientras tanto, el contraste del día con administración se ve en el botón de arriba y el detalle por foto sigue en <a href="tabla.html">tabla.html</a>.</p></div></section>';
+  }
+
+  // ---- ¿Cómo se lee? (texto de la maqueta) ----
+  function ayuda() {
+    if (!S.help) return "";
+    return '<div class="cf-help"><div role="dialog" aria-modal="true" aria-labelledby="cf-help-t">' +
+      '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;"><h2 id="cf-help-t" style="font-size: 26px;">Cómo se lee</h2>' +
+      '<button type="button" data-help="0" style="min-height: 44px; padding: 8px 16px; border: 1px solid #D6CFC1; background: #FFFFFF; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;">Cerrar</button></div>' +
+      '<p class="cf-gris">Cada pestaña contesta una pregunta. Todo en millones de pesos (MM), con lo que tiene cargado Albor cada madrugada (el «día de carga»).</p>' +
+      '<div style="display: flex; flex-direction: column; gap: 6px;"><h3>Saldo proyectado</h3>' +
+      "<p>¿Cuánta plata va a haber en cada fecha? Si se cumple todo lo cargado en Albor: lo que hay hoy (bancos + vencidos) + lo que entra − lo que sale hasta ese día. Negativo = faltaría plata.</p>" +
+      "<p>Fechas clave: los próximos cuatro días 10 (arrendamientos) o fines de mes, más la fecha fija (★): el 30 de noviembre. Pasado el 30/11, la fecha fija pasa al fin de febrero; pasado febrero, vuelve al 30/11. Las otras cuatro corren solas: cuando una pasa, entra la siguiente.</p>" +
+      "<p>«▲ +100 contra el lunes» = para ese día, con lo cargado hoy se espera tener 100 MM más que con lo cargado el lunes.</p>" +
+      "<p>«Dónde te parás»: la fecha es dónde te parás, no hacia dónde mirás. «Parado el» es el día de carga en Albor (hoy o para atrás) y «Mirando al» la fecha que querés ver, para atrás o para adelante. Si la fecha todavía no había llegado, es lo proyectado con lo cargado ese día; si ya había pasado, lo que realmente hubo (hay saldo de bancos desde el 01/09). Se compara contra lo cargado hoy; con «Comparar contra otro día» elegís otro. Es el mismo selector que en «Qué cambió».</p></div>" +
+      '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Qué cambió</h3>' +
+      "<p>El mismo «Dónde te parás»: «Parado el» (día de carga), «Mirando al» (la fecha que querés ver, para atrás o para adelante) y contra lo cargado hoy u otro día. Muestra el saldo a esa fecha parado en cada día, por rubro, en los días 10 y fines de mes, los comprobantes que más movieron (qué se cargó, borró o cambió de fecha en Albor) y lunes a lunes. No es plata que entró o salió: son cambios en la carga.</p></div>" +
+      '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Cash Flow Hoy</h3><p>Lo que entra y sale cada mes, por rubro, según lo cargado hoy. Es la planilla de administración. Sombreado: campaña siguiente (después del 30/11).</p></div>' +
+      '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Granos</h3><p>Por grano y por mes: stock a vender, gastos comerciales (con fletes) y costo de cosecha. Solo lo que está en Albor; lo que falta o no cuadra no se completa. Los fletes del rubro 16 no suman en el saldo.</p></div>' +
+      '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Estado de la web</h3><p>Controles automáticos de cada mañana: si coincide con administración, si los datos guardados están bien y si hay alarmas. El punto verde de arriba los resume.</p></div>' +
+      '<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid #D6CFC1;"><h3>Palabras</h3><dl>' +
+      "<dt>Día de carga</dt><dd>Lo que tenía cargado Albor esa madrugada. Se guarda uno por día y no se modifica nunca. «Parado el» elige cuál.</dd>" +
+      "<dt>Hasta dónde se proyecta</dt><dd>Lo fija administración" + (S.hoy ? " (hoy, hasta el " + larga(S.hoy.horizonte) + ")" : "") + ".</dd>" +
+      "<dt>Días 10 y fines de mes</dt><dd>El día 10 (se pagan los arrendamientos) y el último día de cada mes.</dd>" +
+      "<dt>Fecha fija (★)</dt><dd>El 30/11, fin de campaña. Pasado el 30/11 pasa a ser el fin de febrero; pasado febrero, vuelve al 30/11.</dd>" +
+      "<dt>Comprometido</dt><dd>Hay un documento con un tercero: factura, contrato, orden de compra, arrendamiento.</dd>" +
+      "<dt>Presupuesto</dt><dd>Lo carga finanzas por fórmula: otros ingresos y otros egresos. Incluye el stock de granos a vender.</dd>" +
+      "<dt>Bancos</dt><dd>Saldo conciliado del día. No tiene comprobante detrás.</dd>" +
+      "<dt>Girasol AO</dt><dd>Girasol alto oleico; va aparte del girasol común.</dd>" +
+      "<dt>MM</dt><dd>Millones de pesos.</dd></dl></div></div></div>";
+  }
+
+  // --- render -------------------------------------------------------------------------
+  function render() {
+    var act = document.activeElement && document.activeElement.id;
+    var y = window.scrollY;
+    var h = '<div class="cf-wrap">' + cabecera() + tabs();
+    if (S.hoyError) h += errorHTML(S.hoyError);
+    else if (!S.hoy) h += esqueleto();
+    else if (S.tab === "venimos") h += saldoProyectado();
+    else if (S.tab === "cambio") h += queCambio();
+    else if (S.tab === "hecho") h += cashFlowHoy();
+    else if (S.tab === "granos") h += enConstruccion("Granos", "Stock, gastos y cosecha por grano", "Por grano y por mes, según lo cargado hoy en Albor: el stock que se va a vender (+), los gastos comerciales con fletes (−) y lo que cuesta cosechar (−).");
+    else h += enConstruccion("Estado de la web", "¿El número de hoy está bien?", "Tres controles automáticos, cada mañana.");
+    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1 (30/09/2026) · Los datos de un día ya guardado no cambian nunca. " +
+      'La clave del link queda recordada en este aparato. <a href="#" id="olvidar">Olvidar la clave en este aparato</a>.</footer></div>' + ayuda();
+    app.innerHTML = h;
+    // La leyenda «Deslizá la tabla» solo si la tabla de al lado de verdad se desliza.
+    app.querySelectorAll(".cf-scroll").forEach(function (sc) {
+      var l = sc.previousElementSibling;
+      if (l && l.classList.contains("cf-only-sm")) { var va = sc.scrollWidth > sc.clientWidth + 2; l.style.visibility = va ? "visible" : "hidden"; l.style.height = va ? "" : "0"; l.style.padding = va ? "" : "0"; }
+    });
+    if (act) { var e = document.getElementById(act); if (e) e.focus({ preventScroll: true }); }
+    window.scrollTo(0, y);
+  }
+
+  // --- arranque -------------------------------------------------------------------------
+  if (!k) {
+    app.innerHTML = '<div class="cf-wrap">' + cabecera() + '<div class="cf-aviso" role="alert" id="cf-error"><b>Falta la clave en el link.</b> ' +
+      "El link completo lleva la clave (<code>?k=…</code> o <code>#k=…</code>): pedíselo a quien te lo pasó y abrilo entero. Después de la primera vez, este aparato la recuerda.</div></div>";
+    return;
+  }
+  render();
+  pedirHoy();
+  pedirSello();
+})();
+</script>
+</body>
+</html>
