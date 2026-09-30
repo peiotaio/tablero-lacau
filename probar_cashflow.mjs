@@ -32,12 +32,27 @@
 //       celda, bancos +21,80, 58 días guardados, bitácora de 10 hábiles;
 //       30/09 -> coincide, 0,07, ninguna celda, bancos +36,75, 59 días.
 //
+//    9. (v1.2, PROMPT 4, 30/09/2026) Corre en el watchdog diario del bot
+//       (chequeo.yml) contra la pagina PUBLICADA. Dos cosas que NO son falla:
+//       · hoy contra hoy en 0,00 (punto 6) es un estado valido (leccion
+//         WEB_PRUEBA_SIN_MOVIMIENTO del 28/09): ya estaba aceptado desde la v1.
+//       · el caso de granos lee el detalle crudo de la bajada del 29/09, que
+//         cf_ralear borra a los 60 dias (salvo la ultima bajada de cada semana).
+//         Cuando pase, la funcion devuelve disponible:false y la pagina pinta el
+//         aviso «…ya no está guardado…» sin tabla. Eso se marca como «NO SE PUDO
+//         CORRER» (se lista aparte, exit 0 si no hay otra falla) y la salida
+//         termina con "AVISO: GRANOS_SIN_DETALLE"; el watchdog no abre incidente.
+//       Si algo si falla, exit 1 con "FALLA:" y el watchdog abre WEB_CAIDA (ROJO)
+//       con la salida completa.
+//
 //  Uso:
 //    TABLERO_KEY=... node probar_cashflow.mjs            -> cashflow.html LOCAL
 //    TABLERO_KEY=... TABLERO_URL=https://.../cashflow.html node probar_cashflow.mjs
 //                                                         -> la pagina PUBLICADA
 //    FOTO=1                                               -> guarda capturas (FOTO_DIR o /tmp)
 //    PW_CHANNEL=chrome                                    -> usa el Chrome del sistema
+//    SIMULAR_GRANOS_RALEADO=1                             -> (solo para probar a mano el camino «detalle
+//                                                            raleado») responde vista=granos con disponible:false
 //
 //  Todas las consultas van con prueba=1 (origen=prueba en cf_uso_web).
 //  La clave NUNCA vive en este repo: sale del entorno o aborta.
@@ -71,8 +86,14 @@ const t0 = Date.now();
 const nav = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
 const fallas = [];
 const resumen = [];
+const noCorridos = [];       // (v1.2) casos que no se pudieron correr: no son falla, se listan aparte
 const falla = (t) => fallas.push(t);
 const ok = (t) => resumen.push('  ok  ' + t);
+const noCorrido = (t) => { noCorridos.push(t); resumen.push('  --  NO SE PUDO CORRER: ' + t); };
+const SIMULAR_RALEADO = process.env.SIMULAR_GRANOS_RALEADO === '1';
+// La pagina pinta este aviso (y ninguna tabla) cuando la funcion devuelve disponible:false.
+const RE_GRANOS_RALEADO = /ya no está guardado/;
+const granosRaleado = (pag) => pag.evaluate((re) => Array.from(document.querySelectorAll('section[aria-label="Granos"] .cf-aviso')).some((a) => new RegExp(re).test(a.textContent || '')), RE_GRANOS_RALEADO.source);
 
 const TABS = ['venimos', 'hecho', 'cambio', 'granos', 'fiar'];
 const NOMBRE = { venimos: 'Saldo proyectado', hecho: 'Cash Flow Hoy', cambio: 'Qué cambió', granos: 'Granos', fiar: 'Estado de la web' };
@@ -82,6 +103,16 @@ async function contexto(ancho) {
   if (!URL_PUBLICADA) {
     await ctx.route('https://tablero.local/**', (r) =>
       r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html }));
+  }
+  if (SIMULAR_RALEADO) {
+    // Lo que devuelve la funcion cuando cf_ralear ya borro el detalle crudo (granos.ts): mismo cuerpo, disponible:false.
+    await ctx.route((u) => u.searchParams.get('vista') === 'granos', async (r) => {
+      const resp = await r.fetch();
+      let d; try { d = await resp.json(); } catch { return r.fulfill({ response: resp }); }
+      d = { ...d, avisos: [...(d.avisos || []), 'El detalle renglón por renglón de la bajada del ' + d.foto + ' ya no está guardado (se ralea a los 60 días): no se puede leer el stock, los gastos ni la cosecha por grano de ese día. (SIMULADO por SIMULAR_GRANOS_RALEADO=1)'],
+        disponible: false, meses: [], por_grano: {}, fichas: [], detalle: [], fletes16: [], no_leidos: [], totales: null };
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) });
+    });
   }
   return ctx;
 }
@@ -123,7 +154,16 @@ async function recorrer(ancho) {
   for (const t of TABS) {
     await pag.click(`.cf-tabs button[data-tab="${t}"]`);
     const espera = { venimos: '#cf-det-v', hecho: '#cf-acum', cambio: '#cf-q-total', granos: '#cf-gr-tabla', fiar: '#cf-est-checks' }[t];
-    try { await esperar(pag, espera); } catch { falla(`${rot} · ${NOMBRE[t]}: no aparecio ${espera} en 45 s (${await texto(pag, '.cf-err, #cf-error')})`); }
+    if (t === 'granos') {
+      // (v1.2) la tabla, o el aviso de detalle raleado (valido: no es falla, se anota como no corrido).
+      try {
+        await pag.waitForFunction((re) => !!document.querySelector('#cf-gr-tabla') ||
+          Array.from(document.querySelectorAll('section[aria-label="Granos"] .cf-aviso')).some((a) => new RegExp(re).test(a.textContent || '')), RE_GRANOS_RALEADO.source, { timeout: 45000 });
+        if (!(await pag.$('#cf-gr-tabla'))) noCorrido(`${rot} · Granos: la bajada de hoy ya no tiene el detalle crudo (raleado); la pestaña pinta el aviso y ninguna tabla`);
+      } catch { falla(`${rot} · ${NOMBRE[t]}: no aparecio ${espera} ni el aviso de detalle raleado en 45 s (${await texto(pag, '.cf-err, #cf-error')})`); }
+    } else {
+      try { await esperar(pag, espera); } catch { falla(`${rot} · ${NOMBRE[t]}: no aparecio ${espera} en 45 s (${await texto(pag, '.cf-err, #cf-error')})`); }
+    }
     await pag.waitForTimeout(300);
     const sw = await scroll(pag);
     if (sw > ancho) falla(`${rot} · ${NOMBRE[t]}: hay scroll horizontal de pagina (scrollWidth ${sw})`); else ok(`${rot} · ${NOMBRE[t]}: sin scroll horizontal (scrollWidth ${sw})`);
@@ -252,7 +292,23 @@ async function granosYEstado() {
   {
     const rot = 'Granos (hoy=2026-09-29)';
     const { pag, errores } = await abrir(ctx, link({ tab: 'granos' }));
-    try { await esperar(pag, '#cf-gr-tabla'); } catch { falla(`${rot}: la tabla no aparecio (${await texto(pag, '.cf-err, #cf-error')})`); }
+    let sinDetalle = false;
+    try {
+      await pag.waitForFunction((re) => !!document.querySelector('#cf-gr-tabla') ||
+        Array.from(document.querySelectorAll('section[aria-label="Granos"] .cf-aviso')).some((a) => new RegExp(re).test(a.textContent || '')), RE_GRANOS_RALEADO.source, { timeout: 45000 });
+      sinDetalle = !(await pag.$('#cf-gr-tabla')) && await granosRaleado(pag);
+    } catch { falla(`${rot}: la tabla no aparecio (${await texto(pag, '.cf-err, #cf-error')})`); }
+    if (sinDetalle) {
+      // (v1.2) cf_ralear ya borro el detalle crudo de esa bajada: el caso congelado no se puede correr.
+      // No es la web rota (la pagina aviso bien y sin tabla): se anota y se sigue, sin incidente.
+      const aviso = await pag.evaluate(() => Array.from(document.querySelectorAll('section[aria-label="Granos"] .cf-aviso')).map((a) => a.textContent.trim()).join(' | '));
+      resumen.push(`--- ${rot} ---`);
+      resumen.push(`la pagina dice: ${aviso.slice(0, 240)}`);
+      noCorrido(`${rot}: el detalle crudo de esa bajada ya no está guardado (raleado): el caso congelado de granos no se puede correr. Si se quiere un caso que dure, la base tendría que guardar stock/gastos/cosecha por grano por foto (plan para Peio, no se toca la base)`);
+      if (errores.length) falla(`${rot}: errores de pagina (${errores[0].slice(0, 200)})`);
+      await foto(pag, 'granos_sin_detalle');
+      await pag.close();
+    } else {
     const leer = () => pag.evaluate(() => {
       const filas = Array.from(document.querySelectorAll('#cf-gr-tabla .cf-row:not(.cf-head)')).map((f) => Array.from(f.children).map((c) => c.textContent.trim()));
       const fila = (n) => filas.find((f) => f[0].startsWith(n)) ?? [];
@@ -291,6 +347,7 @@ async function granosYEstado() {
     if (errores.length) falla(`${rot}: errores de pagina (${errores[0].slice(0, 200)})`);
     await foto(pag, 'granos');
     await pag.close();
+    }
   }
   for (const [dia, esp] of [['2026-09-29', { bancos: '+21,80', dias: '58 días', hora: '08:35' }], ['2026-09-30', { bancos: '+36,75', dias: '59 días', hora: '08:39' }]]) {
     const rot = `Estado de la web (hoy=${dia})`;
@@ -329,6 +386,12 @@ await nav.close();
 
 console.log(resumen.join('\n'));
 console.log(`duracion             : ${((Date.now() - t0) / 1000).toFixed(1)} s`);
-if (!fallas.length) console.log('\nTodo OK.');
+console.log(`comprobaciones       : ${resumen.filter((l) => l.startsWith('  ok  ')).length} ok, ${fallas.length} mal, ${noCorridos.length} no corridas`);
+if (noCorridos.length) {
+  // (v1.2) No es falla: se lista aparte y la salida lleva el aviso para el watchdog.
+  console.log('\nNO SE PUDO CORRER:\n  - ' + noCorridos.join('\n  - '));
+  console.log('AVISO: GRANOS_SIN_DETALLE');
+}
+if (!fallas.length) console.log(noCorridos.length ? '\nTodo OK (con casos que no se pudieron correr).' : '\nTodo OK.');
 else console.log('\nFALLA:\n  - ' + fallas.join('\n  - '));
 process.exit(fallas.length ? 1 : 0);
