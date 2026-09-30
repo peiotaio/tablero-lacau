@@ -24,6 +24,14 @@
 //    6. Abrir «Qué cambió» sin tocar nada: hoy contra hoy, «Cambió» en 0,00,
 //       sin error (decision 1: es un estado valido).
 //
+//    7. (v1.1, PROMPT 3) Granos con hoy=2026-09-29: en pantalla, el caso congelado
+//       de la maqueta: stock 20.231,58 MM (12 renglones, 2 sin tn/USD/TC), gastos
+//       comerciales −8.885,64 (con −311,44 de fletes del 16) y cosecha −4.078,48;
+//       el chip «Soja» filtra (título, stock 8.363,74, 2 renglones de stock).
+//    8. (v1.1) Estado de la web: 29/09 -> coincide, 0,07 MM sin bancos, ninguna
+//       celda, bancos +21,80, 58 días guardados, bitácora de 10 hábiles;
+//       30/09 -> coincide, 0,07, ninguna celda, bancos +36,75, 59 días.
+//
 //  Uso:
 //    TABLERO_KEY=... node probar_cashflow.mjs            -> cashflow.html LOCAL
 //    TABLERO_KEY=... TABLERO_URL=https://.../cashflow.html node probar_cashflow.mjs
@@ -114,7 +122,7 @@ async function recorrer(ancho) {
   if (!clave.olvidar) falla(`${rot}: falta el link "olvidar la clave"`);
   for (const t of TABS) {
     await pag.click(`.cf-tabs button[data-tab="${t}"]`);
-    const espera = { venimos: '#cf-det-v', hecho: '#cf-acum', cambio: '#cf-q-total', granos: '#cf-construccion', fiar: '#cf-construccion' }[t];
+    const espera = { venimos: '#cf-det-v', hecho: '#cf-acum', cambio: '#cf-q-total', granos: '#cf-gr-tabla', fiar: '#cf-est-checks' }[t];
     try { await esperar(pag, espera); } catch { falla(`${rot} · ${NOMBRE[t]}: no aparecio ${espera} en 45 s (${await texto(pag, '.cf-err, #cf-error')})`); }
     await pag.waitForTimeout(300);
     const sw = await scroll(pag);
@@ -238,9 +246,85 @@ async function casos() {
   await ctx.close();
 }
 
+// --- 7 y 8. Granos y Estado de la web (v1.1) ---------------------------------------
+async function granosYEstado() {
+  const ctx = await contexto(1280);
+  {
+    const rot = 'Granos (hoy=2026-09-29)';
+    const { pag, errores } = await abrir(ctx, link({ tab: 'granos' }));
+    try { await esperar(pag, '#cf-gr-tabla'); } catch { falla(`${rot}: la tabla no aparecio (${await texto(pag, '.cf-err, #cf-error')})`); }
+    const leer = () => pag.evaluate(() => {
+      const filas = Array.from(document.querySelectorAll('#cf-gr-tabla .cf-row:not(.cf-head)')).map((f) => Array.from(f.children).map((c) => c.textContent.trim()));
+      const fila = (n) => filas.find((f) => f[0].startsWith(n)) ?? [];
+      return {
+        titulo: document.querySelector('#cf-gr-tabla h3')?.textContent.trim(),
+        stockTit: document.querySelector('#cf-gr-stock h3')?.textContent.trim(),
+        totStock: fila('Stock').slice(-1)[0], totGcom: fila('Gastos').slice(-1)[0], totCos: fila('Cosecha').slice(-1)[0], totNeto: fila('Neto').slice(-1)[0],
+        fichas: document.querySelectorAll('#cf-gr-fichas .cf-row:not(.cf-head)').length,
+        noCuadra: document.querySelectorAll('#cf-gr-fichas .cf-gr-nocuadra').length,
+        notas: Array.from(document.querySelectorAll('#cf-gr-tabla .cf-gr-nota')).map((n) => n.textContent),
+        det: document.querySelectorAll('#cf-gr-det .cf-row:not(.cf-head)').length,
+        chips: document.querySelectorAll('#cf-gr-chips button').length,
+        meses: document.querySelectorAll('#cf-gr-tabla .cf-head > div').length - 2,
+      };
+    });
+    const g = await leer();
+    resumen.push(`--- ${rot} ---`);
+    resumen.push(`${g.titulo} · meses ${g.meses} · stock ${g.totStock} · gastos ${g.totGcom} · cosecha ${g.totCos} · neto ${g.totNeto} · ${g.fichas} renglones de stock (${g.noCuadra} no cuadran) · ${g.det} renglones de detalle`);
+    const chk = (nombre, real, esp) => { if (real !== esp) falla(`${rot}: ${nombre} da "${real}" y se esperaba "${esp}"`); else ok(`${rot}: ${nombre} = ${esp}`); };
+    chk('titulo', g.titulo, 'Todos los granos · por mes'); chk('meses', g.meses, 10); chk('chips', g.chips, 9);
+    chk('Stock a vender (total)', g.totStock, '20.231,58'); chk('titulo del stock', g.stockTit, 'Stock a vender · 20.231,58 MM');
+    chk('Gastos comerciales (total)', g.totGcom, '−8.885,64'); chk('Cosecha (total)', g.totCos, '−4.078,48'); chk('Neto (total)', g.totNeto, '7.267,45');
+    chk('renglones de stock', g.fichas, 12); chk('renglones que no cuadran', g.noCuadra, 2); chk('renglones de gastos y cosecha', g.det, 29);
+    if (!g.notas.some((n) => /−311,44 MM de fletes/.test(n))) falla(`${rot}: falta la nota de los fletes del 16 (−311,44)`); else ok(`${rot}: nota de fletes −311,44`);
+    if (!g.notas.some((n) => /−272,57 MM no dicen el grano/.test(n))) falla(`${rot}: falta la nota de fletes sin grano (−272,57)`); else ok(`${rot}: nota de fletes sin grano −272,57`);
+    // El chip «Soja» filtra todo.
+    await pag.click('#cf-gr-chips button[data-grano="Soja"]');
+    await pag.waitForFunction(() => /^Soja/.test(document.querySelector('#cf-gr-tabla h3')?.textContent ?? ''), null, { timeout: 10000 }).catch(() => {});
+    const sj = await leer();
+    resumen.push(`Soja: ${sj.titulo} · stock ${sj.totStock} · gastos ${sj.totGcom} · cosecha ${sj.totCos} · ${sj.fichas} renglones de stock · ${sj.det} de detalle`);
+    chk('Soja: titulo', sj.titulo, 'Soja · por mes'); chk('Soja: stock', sj.totStock, '8.363,74'); chk('Soja: gastos', sj.totGcom, '−4.774,85'); chk('Soja: cosecha', sj.totCos, '−2.494,75');
+    chk('Soja: renglones de stock', sj.fichas, 2);
+    if (!/grano=Soja/.test(await pag.evaluate(() => location.hash))) falla(`${rot}: el grano elegido no quedo en el link (#grano=Soja)`);
+    const sw = await scroll(pag);
+    if (sw > 1280) falla(`${rot}: scroll horizontal de pagina (${sw})`);
+    if (errores.length) falla(`${rot}: errores de pagina (${errores[0].slice(0, 200)})`);
+    await foto(pag, 'granos');
+    await pag.close();
+  }
+  for (const [dia, esp] of [['2026-09-29', { bancos: '+21,80', dias: '58 días', hora: '08:35' }], ['2026-09-30', { bancos: '+36,75', dias: '59 días', hora: '08:39' }]]) {
+    const rot = `Estado de la web (hoy=${dia})`;
+    const { pag, errores } = await abrir(ctx, link({ tab: 'fiar', hoy: dia }));
+    try { await esperar(pag, '#cf-est-checks'); } catch { falla(`${rot}: los controles no aparecieron (${await texto(pag, '.cf-err, #cf-error')})`); }
+    const e = await pag.evaluate(() => ({
+      c1: document.querySelector('#cf-est-contraste')?.textContent.replace(/\s+/g, ' ').trim(), c1dot: document.querySelector('#cf-est-contraste .cf-dot')?.className,
+      c2: document.querySelector('#cf-est-integridad')?.textContent.replace(/\s+/g, ' ').trim(), c2dot: document.querySelector('#cf-est-integridad .cf-dot')?.className,
+      c3: document.querySelector('#cf-est-incidentes')?.textContent.replace(/\s+/g, ' ').trim(),
+      bit: Array.from(document.querySelectorAll('#cf-est-bitacora .cf-bit > div')).map((d) => d.textContent.replace(/\s+/g, ' ').trim()),
+      sello: document.querySelector('#cf-sello')?.textContent.trim(),
+    }));
+    resumen.push(`--- ${rot} ---`);
+    resumen.push(`1) ${e.c1.slice(0, 220)}`); resumen.push(`2) ${e.c2.slice(0, 160)}`); resumen.push(`3) ${e.c3.slice(0, 160)}`); resumen.push(`bitacora: ${e.bit.join(' | ')}`);
+    const has = (nombre, txt, re) => { if (!re.test(txt)) falla(`${rot}: ${nombre} no dice ${re} ("${txt.slice(0, 160)}")`); else ok(`${rot}: ${nombre} ${re}`); };
+    has('control 1', e.c1, /^Coincide con administración/); has('control 1', e.c1, new RegExp(dia.slice(8) + '/' + dia.slice(5, 7) + ', ' + esp.hora));
+    has('control 1', e.c1, /diferencia 0,07 MM sin contar bancos, ninguna celda a revisar/); has('control 1', e.c1, new RegExp('Bancos da ' + esp.bancos.replace('+', '\\+')));
+    if (!/cf-dot ok/.test(e.c1dot)) falla(`${rot}: el punto del control 1 no es verde (${e.c1dot})`);
+    has('control 2', e.c2, /^Los datos guardados están bien/); has('control 2', e.c2, new RegExp('Desde el 14/07 se guardaron los datos de ' + esp.dias + '; ninguno se modificó después. La de hoy se controló a las 07:30'));
+    if (!/cf-dot ok/.test(e.c2dot)) falla(`${rot}: el punto del control 2 no es verde (${e.c2dot})`);
+    if (e.bit.length !== 10) falla(`${rot}: la bitacora tiene ${e.bit.length} dias y no 10`); else ok(`${rot}: bitacora de 10 dias habiles`);
+    if (!/22\/09\s*Revisar/.test(e.bit.join(' | '))) falla(`${rot}: la bitacora no marca el 22/09 como Revisar`);
+    if (!/^Verificado/.test(e.sello ?? '')) falla(`${rot}: el sello de arriba no dice Verificado ("${e.sello}")`);
+    if (errores.length) falla(`${rot}: errores de pagina (${errores[0].slice(0, 200)})`);
+    await foto(pag, `estado_${dia}`);
+    await pag.close();
+  }
+  await ctx.close();
+}
+
 await recorrer(375);
 await recorrer(1280);
 await casos();
+await granosYEstado();
 await nav.close();
 
 console.log(resumen.join('\n'));

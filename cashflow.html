@@ -40,7 +40,14 @@
   #hoy=AAAA-MM-DD o ?hoy=: día congelado para las pruebas (se pasa a las vistas hoy y dondeteparas).
   Deep link: #tab=cambio&desde=&hasta=&mira=&rubro= (Qué cambió) · #pdesde=&phasta=&pmira= (Saldo proyectado).
 
-  Granos y Estado de la web: cartel «En construcción» (van en el PROMPT 3).
+  v1.1 (30/09/2026, PROMPT 3) — GRANOS y ESTADO DE LA WEB con datos:
+    * ?vista=granos[&hoy=]   stock, gastos comerciales (con fletes del 16) y cosecha por grano y por mes, leídos
+                             del detalle de la bajada de hoy con las reglas de la maqueta. Las series por grano
+                             (y «Todos») vienen ya sumadas: acá se elige el grano y se pinta. Lo que no se pudo
+                             leer viene en no_leidos y se lista aparte; nunca se completa.
+    * ?vista=estado[&hoy=]   los tres controles de la mañana (contraste con administración, integridad del
+                             registro, incidentes abiertos) y la bitácora de los últimos 10 días hábiles.
+    Deep link: #tab=granos&grano=Soja · #tab=fiar. #hoy= también congela estas dos vistas.
   Prueba de humo: probar_cashflow.mjs (mismo repo).
 -->
 
@@ -135,7 +142,23 @@ input[type=date]{min-height:44px;padding:8px 12px;border:1px solid #BDB6A6;borde
 .cf-esq .b{background:linear-gradient(90deg,#E6E3DA,#F2F0EA,#E6E3DA);background-size:200% 100%;animation:cfb 1.2s linear infinite;border-radius:8px}
 @keyframes cfb{to{background-position:-200% 0}}
 .cf-cargando{font-size:13px;color:#5D6166}
-.cf-construccion{background:#FFFFFF;border:1px dashed #B9B2A4;border-radius:12px;padding:28px 22px;display:flex;flex-direction:column;gap:8px}
+/* Granos (v1.1): por mes (cf-g12, columnas según los meses), stock (cf-gf) y renglón por renglón (cf-gd). */
+.cf-g12 > div{padding-left:6px;padding-right:6px}
+.cf-g12{min-width:980px}
+.cf-gf{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) repeat(4,minmax(0,1fr));min-width:640px}
+.cf-gd{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,3.4fr) minmax(0,1fr);min-width:700px}
+.cf-chip{min-height:40px;padding:6px 14px;border-radius:999px;cursor:pointer;font-size:14px;font-weight:600;border:1px solid #2F3437;background:#FFFFFF;color:#2F3437}
+.cf-chip[aria-pressed="true"]{background:#2F3437;color:#FFFFFF}
+/* Estado de la web (v1.1): el punto de cada control y la bitácora. */
+.cf-check{background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.cf-check p{font-size:14px}
+.cf-dot{width:10px;height:10px;border-radius:999px;background:#5D6166;display:inline-block;flex:none}
+.cf-dot.ok{background:#237A4B}.cf-dot.revisar{background:#C9891C}.cf-dot.falla{background:#B0352A}
+.cf-bit{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.cf-bit > div{padding:8px 10px;border-radius:8px;background:#EFEDE8;color:#5D6166}
+.cf-bit > div.ok{background:#E4EDE7;color:#15181A}.cf-bit > div.revisar{background:#FDF1D6;color:#8A5A0C}.cf-bit > div.falla{background:#F9E7E4;color:#7A1F16}
+.cf-est details{font-size:13px;color:#5D6166}.cf-est summary{cursor:pointer;font-weight:600;color:#26292C}
+.cf-est ul{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
 footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12px}
 .cf-help{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(20,20,19,0.45);z-index:50;display:flex;justify-content:flex-end}
 .cf-help > div{width:100%;max-width:480px;height:100%;overflow-y:auto;background:#FFFFFF;color:#26292C;padding:24px 26px 40px;display:flex;flex-direction:column;gap:18px}
@@ -183,6 +206,9 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
  .cf-gl3{min-width:340px}
  .cf-gl4{min-width:450px}
  .cf-g7{grid-template-columns:130px repeat(5,minmax(96px,1fr));min-width:620px}
+ .cf-gf{min-width:560px}
+ .cf-gd{min-width:640px}
+ .cf-gd > div:first-child{white-space:normal}
  .cf-g7 > div:nth-child(2){display:none}
  .cf-help > div{max-width:100%}
 }
@@ -272,7 +298,10 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     P: nuevoSel(),                  // selector de Saldo proyectado
     Q: nuevoSel(),                  // selector de Qué cambió
     rubSel: hash.get("rubro") && /^\d{2}A?$/.test(hash.get("rubro")) ? hash.get("rubro") : null,
-    compsTodos: false
+    compsTodos: false,
+    granos: null, granosError: null,   // ?vista=granos (v1.1)
+    grano: hash.get("grano") || "Todos",
+    estado: null, estadoError: null    // ?vista=estado (v1.1)
   };
   var cacheD = {};   // dondeteparas, por parámetros: { data } | { error } | { cargando: true }
   var cacheE = {};   // entre, ídem
@@ -352,8 +381,29 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
       .catch(function (e) { cacheE[key] = { error: e.message || "No se pudieron leer los comprobantes." }; })
       .then(function () { render(); });
   }
+  // v1.1: Granos y Estado de la web, una vez cada una (con el mismo día congelado si lo hay).
+  function pedirGranos() {
+    if (S.granos || S.granosCargando) return;
+    S.granosCargando = true; S.granosError = null;
+    var p = new URLSearchParams({ vista: "granos" });
+    if (hoyParam) p.set("hoy", hoyParam);
+    traer(p).then(function (d) { S.granos = d; if (d.granos.indexOf(S.grano) < 0) S.grano = "Todos"; })
+      .catch(function (e) { S.granosError = e.message || "No se pudieron leer los granos."; })
+      .then(function () { S.granosCargando = false; render(); });
+  }
+  function pedirEstado() {
+    if (S.estado || S.estadoCargando) return;
+    S.estadoCargando = true; S.estadoError = null;
+    var p = new URLSearchParams({ vista: "estado" });
+    if (hoyParam) p.set("hoy", hoyParam);
+    traer(p).then(function (d) { S.estado = d; })
+      .catch(function (e) { S.estadoError = e.message || "No se pudo leer el estado de la web."; })
+      .then(function () { S.estadoCargando = false; render(); });
+  }
   // Lo que necesita la pestaña abierta, si todavía no está pedido.
   function asegurar() {
+    if (S.tab === "granos" && !S.granosError) pedirGranos();
+    if (S.tab === "fiar" && !S.estadoError) pedirEstado();
     if (!S.hoy) return;
     if (S.tab === "venimos") pedirDonde(S.P);
     if (S.tab === "cambio") {
@@ -376,6 +426,7 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     };
     poner(S.P, "p"); poner(S.Q, "");
     if (S.rubSel) p.set("rubro", S.rubSel);
+    if (S.grano !== "Todos") p.set("grano", S.grano);
     if (hoyParam) p.set("hoy", hoyParam);
     if (prueba) p.set("prueba", "1");
     var t = p.toString();
@@ -398,10 +449,16 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
 
   // --- eventos delegados ------------------------------------------------------------
   app.addEventListener("click", function (ev) {
-    var el = ev.target.closest("[data-tab],[data-set],[data-otro],[data-help],[data-rubro],[data-comps],[data-reintentar],#olvidar");
+    var el = ev.target.closest("[data-tab],[data-set],[data-otro],[data-help],[data-rubro],[data-grano],[data-comps],[data-reintentar],#olvidar");
     if (!el) return;
     if (el.id === "olvidar") { ev.preventDefault(); olvidar(); location.replace(location.pathname); return; }
-    if (el.hasAttribute("data-reintentar")) { S.hoy = null; render(); pedirHoy(); return; }
+    if (el.hasAttribute("data-reintentar")) {
+      var que = el.getAttribute("data-reintentar");
+      if (que === "granos") { S.granos = null; S.granosError = null; render(); pedirGranos(); return; }
+      if (que === "estado") { S.estado = null; S.estadoError = null; render(); pedirEstado(); return; }
+      S.hoy = null; render(); pedirHoy(); return;
+    }
+    if (el.hasAttribute("data-grano")) { S.grano = el.getAttribute("data-grano"); tick(); return; }
     if (el.hasAttribute("data-tab")) {
       var t = el.getAttribute("data-tab");
       // «Ver qué cambió» lleva el mismo selector a la otra pestaña.
@@ -788,13 +845,161 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     return h + "</section>";
   }
 
-  // ---- Granos y Estado de la web: en construcción (PROMPT 3) ----
-  function enConstruccion(nombre, titulo, texto) {
-    return '<section role="tabpanel" aria-label="' + esc(nombre) + '" style="display: flex; flex-direction: column; gap: 20px;">' +
-      '<div style="display: flex; flex-direction: column; gap: 4px;"><h2>' + esc(titulo) + '</h2><p class="cf-gris" style="font-size: 14px;">' + esc(texto) + "</p></div>" +
-      '<div class="cf-construccion" id="cf-construccion"><div style="font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #5D6166;">EN CONSTRUCCIÓN</div>' +
-      '<p style="font-size: 15px; font-weight: 600;">Esta pestaña todavía no tiene datos.</p>' +
-      '<p class="cf-gris" style="font-size: 14px;">Llega en el próximo paso de la web. Mientras tanto, el contraste del día con administración se ve en el botón de arriba y el detalle por foto sigue en <a href="tabla.html">tabla.html</a>.</p></div></section>';
+  // ---- Granos (v1.1): ?vista=granos. La función manda las series por grano ya sumadas; acá se elige y se pinta. ----
+  function cargandoHTML(id, txt) { return '<div class="cf-esq" id="' + id + '"><p class="cf-cargando">' + esc(txt) + '</p><div class="b" style="width:100%;height:120px"></div><div class="b" style="width:100%;height:200px"></div></div>'; }
+  function errorTab(msg, que) {
+    return '<div class="cf-aviso" role="alert" id="cf-error"><b>No se pudo cargar.</b> ' + esc(msg) + " " + queHacer(msg) +
+      ' <button type="button" class="cf-btn" data-reintentar="' + que + '" style="margin-left: 8px;">Reintentar</button></div>';
+  }
+  function granos() {
+    var h = '<section role="tabpanel" aria-label="Granos" style="display: flex; flex-direction: column; gap: 20px;">';
+    h += '<div style="display: flex; flex-direction: column; gap: 4px;"><h2>Stock, gastos y cosecha por grano</h2>' +
+      '<p class="cf-gris" style="font-size: 14px;">Por grano y por mes, según lo cargado hoy en Albor: el stock que se va a vender (+), los gastos comerciales con fletes (−) y lo que cuesta cosechar (−). Elegí un grano para verlo solo.</p></div>';
+    if (S.granosError) return h + errorTab(S.granosError, "granos") + "</section>";
+    var G = S.granos;
+    if (!G) return h + cargandoHTML("cf-gr-cargando", "Leyendo el stock, los gastos y la cosecha de la bajada de hoy…") + "</section>";
+    h += avisos(G.avisos);
+    if (!G.disponible) return h + "</section>";
+    var sel = S.grano, todos = sel === "Todos";
+    var incl = function (g) { return todos || g === sel; };
+    var B = G.por_grano[sel] || G.por_grano.Todos;
+    var hy = +G.hoy.slice(0, 4);
+    var finCamp = G.hoy <= hy + "-11-30" ? hy + "-11" : (hy + 1) + "-11";    // sombreado: campaña siguiente (después del 30/11)
+    var zona = function (mes) { return mes > finCamp ? "background: #F3F0E8;" : ""; };
+    var n = G.meses.length;
+    var cols = "grid-template-columns: 150px repeat(" + (n + 1) + ", minmax(0, 1fr)); min-width: " + (150 + (n + 1) * 76) + "px;";
+    // Chips
+    h += '<div class="cf-chips" role="group" aria-label="Elegir grano" id="cf-gr-chips">' + ["Todos"].concat(G.granos).map(function (g) {
+      return '<button type="button" class="cf-chip" aria-pressed="' + (sel === g ? "true" : "false") + '" data-grano="' + esc(g) + '">' + esc(g) + "</button>";
+    }).join("") + "</div>";
+    // Por mes
+    var celG = function (v, mes, extra) {
+      var cero = v === null || v === undefined || Math.abs(v) < 0.005;
+      return '<div style="' + (mes ? zona(mes) : "") + (!cero && v < 0 ? "color: " + NEG + ";" : "") + (extra || "") + '">' + (cero ? "·" : fmt(v)) + "</div>";
+    };
+    var filaG = function (label, arr, total, extra, rowStyle) {
+      return '<div class="cf-row cf-g12" style="' + cols + (rowStyle || "") + '"><div style="font-weight: 500; white-space: normal;">' + esc(label) + "</div>" +
+        arr.map(function (v, i) { return celG(v, G.meses[i], extra); }).join("") + celG(total, null, "font-weight: 600;" + (extra || "")) + "</div>";
+    };
+    h += '<div class="cf-card" id="cf-gr-tabla"><h3>' + esc(todos ? "Todos los granos" : sel) + ' · por mes</h3>' +
+      '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+      '<div class="cf-row cf-g12 cf-head" style="' + cols + '"><div>Concepto</div>' + G.meses.map(function (m) { return '<div style="' + (m > finCamp ? "background: #D3CEC3;" : "") + '">' + mesCorto(m) + "</div>"; }).join("") + '<div style="font-weight: 600;">Total</div></div>' +
+      filaG("Stock a vender", B.stock, B.totales.stock) + filaG("Gastos comerciales", B.gcom, B.totales.gcom) + filaG("Cosecha", B.cosecha, B.totales.cosecha) +
+      filaG("Neto (stock − gastos − cosecha)", B.neto, B.totales.neto, "font-weight: 600;", "border-top: 2px solid #26292C;") + "</div>";
+    var notas = [];
+    if (B.totales.flete16 !== null && Math.abs(B.totales.flete16) >= 0.005) notas.push("Los gastos comerciales incluyen " + fmt(B.totales.flete16) + " MM de fletes de cereales (rubro 16), que van por fuera del cash flow: no cuentan en el saldo. Los ya vencidos se cuentan en el mes en curso.");
+    if (todos && B.totales.flete16_sin_grano !== null && Math.abs(B.totales.flete16_sin_grano) >= 0.005) notas.push("De esos fletes, " + fmt(B.totales.flete16_sin_grano) + " MM no dicen el grano: solo aparecen en «Todos».");
+    h += notas.map(function (t) { return '<p class="cf-gr-nota" style="margin: 8px 10px 4px; font-size: 12px; color: #5D6166;">' + esc(t) + "</p>"; }).join("") + '<div style="height: 6px;"></div></div>';
+    // Stock a vender
+    var fichas = G.fichas.filter(function (k) { return incl(k.grano); });
+    h += '<div class="cf-card" id="cf-gr-stock"><h3>Stock a vender · ' + fmt(B.totales.stock) + ' MM</h3>' +
+      '<p style="font-size: 13px; color: #5D6166;">Toneladas × precio (USD por tn) × tipo de cambio, como lo escribe administración en Albor. Si esa cuenta no da el importe cargado, se muestra solo el importe.</p>';
+    if (fichas.length) {
+      h += '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll" id="cf-gr-fichas">' +
+        '<div class="cf-row cf-gf cf-head"><div>Grano</div><div>Se vende</div><div>Toneladas</div><div>USD por tn</div><div>Tipo de cambio</div><div>MM</div></div>' +
+        fichas.map(function (k) {
+          return '<div class="cf-row cf-gf"><div style="white-space: normal;"><div style="font-weight: 500;">' + esc(k.grano) + "</div>" +
+            (k.cuadra ? "" : '<div class="cf-gr-nocuadra" style="font-size: 12px; color: #B0352A; white-space: normal;">La cuenta del texto (tn × USD × TC) no da exacto el importe cargado; se muestra solo el importe. Texto: «' + esc(k.texto) + '»</div>') + "</div>" +
+            "<div>" + esc(larga(k.fecha)) + "</div><div>" + esc(k.cuadra ? k.tn : "—") + "</div><div>" + esc(k.cuadra ? k.usd_tn : "—") + "</div><div>" + esc(k.cuadra ? k.tc : "—") + '</div><div style="font-weight: 600;">' + fmt(k.mm) + "</div></div>";
+        }).join("") + "</div>";
+    } else {
+      h += '<p style="padding: 4px 10px 10px; font-size: 13px; color: #5D6166;">No hay stock cargado para este grano.</p>';
+    }
+    h += "</div>";
+    // Gastos y cosecha, renglón por renglón
+    var NOMC = { gcom: "Gastos comerciales", cosecha: "Cosecha" };
+    var det = G.detalle.filter(function (d) { return incl(d.grano); });
+    h += '<div class="cf-card" id="cf-gr-det"><h3>Gastos y cosecha, renglón por renglón</h3>' +
+      '<p style="font-size: 13px; color: #5D6166;">Cada renglón tal como está en Albor. Vale el importe: en algunos el texto quedó viejo y ya no coincide. Los fletes del rubro 16 no se listan acá.</p>';
+    if (det.length) {
+      h += '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+        '<div class="cf-row cf-gd cf-head"><div>Concepto</div><div>Fecha</div><div style="text-align: left;">Texto en Albor</div><div>MM</div></div>' +
+        det.map(function (d) {
+          return '<div class="cf-row cf-gd"><div style="white-space: normal;">' + esc((todos ? d.grano + " · " : "") + (NOMC[d.concepto] || d.concepto)) + "</div><div>" + esc(larga(d.fecha)) + "</div>" +
+            '<div style="white-space: normal; text-align: left; font-size: 13px;">' + esc(d.texto) + '</div><div style="color: ' + colV(d.mm) + ';">' + fmt(d.mm) + "</div></div>";
+        }).join("") + "</div>";
+    } else {
+      h += '<p style="padding: 4px 10px 10px; font-size: 13px; color: #5D6166;">No hay gastos comerciales ni cosecha cargados para este grano.</p>';
+    }
+    h += "</div>";
+    // Lo que no se pudo leer (nunca se completa)
+    if (G.no_leidos.length) {
+      h += '<div class="cf-card" id="cf-gr-noleidos"><h3>Renglones que no se pudieron leer (' + G.no_leidos.length + ')</h3>' +
+        '<p style="font-size: 13px; color: #5D6166;">Empiezan como stock, gastos comerciales o cosecha, pero no se reconoce el grano. Quedan fuera de las cuentas de arriba y no se completan.</p><div class="cf-scroll">' +
+        '<div class="cf-row cf-gd cf-head"><div>Rubro</div><div>Fecha</div><div style="text-align: left;">Texto en Albor</div><div>MM</div></div>' +
+        G.no_leidos.map(function (d) {
+          return '<div class="cf-row cf-gd"><div style="white-space: normal;">' + esc(d.rubro.slice(0, 2)) + "</div><div>" + esc(larga(d.fecha)) + '</div><div style="white-space: normal; text-align: left; font-size: 13px;">' + esc(d.texto) + '<div style="font-size: 12px; color: #B0352A;">' + esc(d.motivo) + '</div></div><div style="color: ' + colV(d.mm) + ';">' + fmt(d.mm) + "</div></div>";
+        }).join("") + "</div></div>";
+    }
+    h += '<div class="cf-card2"><h3>Lo que no se puede mostrar (no está en Albor)</h3><ul style="margin: 0; padding-left: 20px; font-size: 14px; display: flex; flex-direction: column; gap: 4px;">' +
+      "<li>A cuántas toneladas corresponden los gastos comerciales y la cosecha.</li><li>Toneladas cosechadas (solo está el costo de la cosecha).</li><li>El stock por grano de días anteriores (todavía no se guarda).</li></ul></div>";
+    h += '<p class="cf-gris cf-num" style="font-size: 12px;">Leído de la bajada del ' + esc(larga(G.foto)) + (G.bajada && G.bajada.hora_ar ? " (" + esc(G.bajada.hora_ar) + ")" : "") + ", " + G.n_renglones_leidos + " renglones de los rubros 04, 09 y 16.</p>";
+    return h + "</section>";
+  }
+
+  // ---- Estado de la web (v1.1): ?vista=estado. Los tres controles de la mañana, leídos de la base. ----
+  function estadoWeb() {
+    var h = '<section role="tabpanel" aria-label="Estado de la web" class="cf-est" style="display: flex; flex-direction: column; gap: 20px;">';
+    h += '<div style="display: flex; flex-direction: column; gap: 4px;"><h2>¿El número de hoy está bien?</h2><p class="cf-gris" style="font-size: 14px;">Tres controles automáticos, cada mañana.</p></div>';
+    if (S.estadoError) return h + errorTab(S.estadoError, "estado") + "</section>";
+    var E = S.estado;
+    if (!E) return h + cargandoHTML("cf-est-cargando", "Leyendo los controles de la mañana…") + "</section>";
+    if (!E.es_hoy_real) h += '<p class="cf-aviso">Estado al ' + esc(larga(E.hoy)) + " (día congelado por el link).</p>";
+    var dot = function (estado) { return '<span class="cf-dot ' + esc(estado) + '"></span>'; };
+    var card = function (id, estado, titulo, cuerpo) {
+      return '<div class="cf-check" id="' + id + '"><div style="display: flex; align-items: center; gap: 8px;">' + dot(estado) + '<span style="font-weight: 600;">' + esc(titulo) + "</span></div>" + cuerpo + "</div>";
+    };
+    // 1. Contraste con administración
+    var c = E.contraste, t1, b1;
+    if (!c) { t1 = "Sin contraste todavía"; b1 = "<p>No hay ningún contraste con la planilla de administración guardado.</p>"; }
+    else {
+      var v = String(c.veredicto || "").toUpperCase();
+      t1 = v === "CIERRA" ? "Coincide con administración" : (c.estado === "revisar" ? "Hay algo para revisar (" + v.toLowerCase() + ")" : "No coincide con administración (" + (v || "sin veredicto").toLowerCase() + ")");
+      var celdas = c.celdas_revisar === null ? "s/d celdas a revisar" : c.celdas_revisar === 0 ? "ninguna celda a revisar" : c.celdas_revisar === 1 ? "1 celda a revisar" : c.celdas_revisar + " celdas a revisar";
+      b1 = '<p class="cf-num">Contra la planilla de Giorgi (' + esc(corta(c.fecha)) + (c.planilla_hora ? ", " + esc(c.planilla_hora) : "") + "): diferencia " + fmt(c.interior) + " MM sin contar bancos, " + celdas +
+        ". Bancos da " + fmtS(c.bancos) + " distinto por la conciliación del día; bancos no se compara." + (c.al_dia ? "" : " Es el último contraste guardado: el de hoy todavía no está.") + "</p>" +
+        (c.nota ? '<details><summary>Nota del contraste</summary><p style="margin-top: 6px;">' + esc(c.nota) + "</p></details>" : "");
+    }
+    // 2. Integridad
+    var I = E.integridad, q = I.chequeo, t2, b2;
+    if (!q) { t2 = "Los datos guardados no se controlaron"; b2 = '<p class="cf-num">Desde el ' + esc(corta(I.primera || "")) + " se guardaron los datos de " + I.fotos + " días. No hay ningún chequeo del registro guardado.</p>"; }
+    else if (I.sin_modificar && q.color !== "ROJO") {
+      t2 = "Los datos guardados están bien";
+      b2 = '<p class="cf-num">Desde el ' + esc(corta(I.primera)) + " se guardaron los datos de " + I.fotos + " días; ninguno se modificó después. " +
+        (q.es_de_hoy ? "La de hoy se controló a las " + esc(q.hora) + "." : "El último control es del " + esc(corta(q.fecha)) + " a las " + esc(q.hora) + ".") +
+        (q.color === "AMBAR" ? " El chequeo quedó en ámbar: " + esc(q.resumen) : "") + "</p>";
+    } else {
+      t2 = "Hay que revisar los datos guardados";
+      b2 = '<p class="cf-num">El control del ' + esc(corta(q.fecha)) + " a las " + esc(q.hora) + " no cerró: " + (q.hash_mal ? q.hash_mal + " foto(s) con el hash cambiado. " : "") + (q.regresion_dif ? q.regresion_dif + " diferencia(s) al recalcular las últimas fotos. " : "") + (q.referencia_dif ? q.referencia_dif + " diferencia(s) contra la foto de referencia. " : "") + "Detalle: " + esc(q.resumen) + "</p>";
+    }
+    // 3. Incidentes
+    var N = E.incidentes;
+    var b3 = N.abiertos.length ? '<ul style="margin: 0; padding-left: 20px; font-size: 14px; display: flex; flex-direction: column; gap: 4px;">' + N.abiertos.map(function (i) {
+      return "<li>" + esc(i.sintoma) + ' <span class="cf-num" style="color: #5D6166; font-size: 12px;">(' + esc(String(i.severidad).toLowerCase()) + ", " + esc(corta(i.abierto || i.fecha)) + (i.abierto_hora ? " " + esc(i.abierto_hora) : "") + (i.veces > 1 ? ", visto " + i.veces + " veces" : "") + ")</span></li>";
+    }).join("") + "</ul>" : "<p>Ningún incidente abierto.</p>";
+    if (N.abiertos.length && c && String(c.veredicto || "").toUpperCase() === "CIERRA" && !N.alarmas) b3 += '<p class="cf-gris" style="font-size: 13px;">Igual coincide con administración.</p>';
+    h += '<div class="cf-checks" id="cf-est-checks">' + card("cf-est-contraste", c ? c.estado : "sin_dato", t1, b1) + card("cf-est-integridad", I.estado, t2, b2) + card("cf-est-incidentes", N.estado, N.titulo, b3) + "</div>";
+    // Bitácora
+    h += '<div class="cf-card2" id="cf-est-bitacora"><h3>Últimos 10 días hábiles</h3><div class="cf-bit">' + E.bitacora.map(function (b) {
+      return '<div class="' + esc(b.estado) + '" title="' + esc(b.nota || "") + '"><div style="font-size: 12px;">' + esc(corta(b.fecha)) + '</div><div style="font-size: 13px; font-weight: 600;">' + esc(b.texto) + "</div></div>";
+    }).join("") + "</div>";
+    var raros = E.bitacora.filter(function (b) { return b.estado !== "ok"; });
+    if (raros.length) {
+      h += raros.map(function (b) {
+        return "<details><summary>" + esc(corta(b.fecha) + ": " + b.texto) + (b.interior !== null ? " · diferencia sin bancos " + fmtS(b.interior) + " MM" : "") + (b.celdas_revisar ? " · " + b.celdas_revisar + " celdas a revisar" : "") + "</summary>" +
+          '<p style="margin-top: 6px;">' + esc(b.nota || "Sin nota.") + "</p></details>";
+      }).join("");
+    } else {
+      h += '<p style="font-size: 13px; color: #5D6166;">Los diez días coinciden con administración.</p>';
+    }
+    h += "</div>";
+    h += '<div class="cf-card2"><h3>Cómo se arma el número</h3><ul>' +
+      "<li>Se lee desde hoy, igual que administración: lo vencido y no resuelto se suma al mes en curso.</li>" +
+      "<li>Bancos es el saldo conciliado del día: no tiene comprobante detrás y no se usa para comparar.</li>" +
+      "<li>No entran los rubros " + esc(E.rubros_fuera.slice(0, -1).join(", ") + " y " + E.rubros_fuera.slice(-1)) + ": van por fuera del cash flow (los fletes del 16 se ven en Granos).</li>" +
+      "<li>Hasta qué fecha se proyecta lo decide administración; la web la sigue sola.</li>" +
+      "<li>Los datos de un día ya guardado no cambian nunca: si cambiaran, algo nuestro se rompió y salta la alarma.</li></ul></div>";
+    return h + "</section>";
   }
 
   // ---- ¿Cómo se lee? (texto de la maqueta) ----
@@ -836,9 +1041,9 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     else if (S.tab === "venimos") h += saldoProyectado();
     else if (S.tab === "cambio") h += queCambio();
     else if (S.tab === "hecho") h += cashFlowHoy();
-    else if (S.tab === "granos") h += enConstruccion("Granos", "Stock, gastos y cosecha por grano", "Por grano y por mes, según lo cargado hoy en Albor: el stock que se va a vender (+), los gastos comerciales con fletes (−) y lo que cuesta cosechar (−).");
-    else h += enConstruccion("Estado de la web", "¿El número de hoy está bien?", "Tres controles automáticos, cada mañana.");
-    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1 (30/09/2026) · Los datos de un día ya guardado no cambian nunca. " +
+    else if (S.tab === "granos") h += granos();
+    else h += estadoWeb();
+    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1.1 (30/09/2026) · Los datos de un día ya guardado no cambian nunca. " +
       'La clave del link queda recordada en este aparato. <a href="#" id="olvidar">Olvidar la clave en este aparato</a>.</footer></div>' + ayuda();
     app.innerHTML = h;
     // La leyenda «Deslizá la tabla» solo si la tabla de al lado de verdad se desliza.
