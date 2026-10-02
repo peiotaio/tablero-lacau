@@ -133,6 +133,7 @@ async function recorrer(ancho) {
   for (const p of PANT) {
     if (ancho < 600 && ['granos', 'albor', 'crudo', 'estado'].includes(p)) { await pag.click('.tabbar [data-mas]'); await pag.click(`.tab-mas [data-p="${p}"]`); }
     else if (ancho < 600) await pag.click(`.tabbar [data-p="${p}"]`);
+    else if (p === 'notas') { await pag.click('.lat .lat-btn[data-p="inicio"]'); await esperar(pag, '.acc[data-p="notas"]'); await pag.click('.acc[data-p="notas"]'); }   // Notas no está en la columna: se llega desde Inicio (o la barra de abajo)
     else await pag.click(`.lat .lat-btn[data-p="${p}"]`);
     if (p === 'granos') {
       try {
