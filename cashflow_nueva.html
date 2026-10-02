@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Cash Flow Lacau</title>
+<!-- sin favicon a proposito: un data: vacio evita el 404 de Pages en cada carga -->
+<link rel="icon" href="data:,">
+
+<!--
+  cashflow.html v2 (02/10/2026) — LA WEB NUEVA COMPLETA, una sola, en uso desde ya (decisión de Peio, 02/10 17:19).
+  Reemplaza a la v1.1.1 en el mismo link. Es la maqueta v2 aprobada el 01/10 (05 Tablero web/web_v2_2026-10-01/
+  MAQUETA_web_v2_2026-10-01.dc.html, canvas v48) llevada a datos reales, sin framework: HTML + JS plano. La lógica
+  JS de la maqueta (ctx, inicio, proy, cambio, giorgi, granos, eys, estado, crudo, notas) es la especificación del
+  comportamiento; acá está reproducida función por función sobre las vistas de la edge function `tabla`.
+
+  PANTALLAS: Inicio · Saldo proyectado · Cuadro Pekín (con «Qué cambió» y «Por motivo») · Granos · Foto Albor ·
+  Dato crudo · Estado de la web · Notas. Columna lateral con las secciones de cada pantalla, sello «Albor al cierre
+  del … · bajada … a las …», barra inferior de 5 en celular, «Cerrar la columna». Deep link por pantalla (#p=…).
+
+  DE DÓNDE SALEN LOS NÚMEROS (edge function `tabla` v13, elegida por ?vista=; la clave va SIEMPRE por el encabezado
+  x-cf-clave, nunca en la URL de la consulta):
+    hoy · pekin · dondeteparas · entre · dias · dia · vencimientos · control · crudo · crudo_filas · granos ·
+    estado · contraste · variaciones · variaciones_dias.
+  TODO viene en millones con 2 decimales y con los avisos ya escritos: acá NO se divide, NO se redondea y NO se
+  calculan saldos. Lo único que se resta en la página son los chips «cambió» entre dos valores que la función manda
+  por separado (una columna del Pekín contra otra) y los totales por capa de Foto Albor (suma de celdas ya en MM);
+  todo lo demás (diferencias, mínimos, acumulados) viene de la función. Lo que no hay va en null o con aviso en
+  castellano: nunca se inventa ni se completa. Nada escrito a mano: ni cifras, ni fechas, ni listas.
+
+  CONVENCIÓN: «carga del día D» = Albor al cierre de D = la bajada de la madrugada D+1. La web habla siempre de
+  «carga»; las vistas reciben bajadas (pekin.cargas[] trae las dos fechas). «Parado el» abre en la carga del lunes
+  anterior (o la anterior, si hoy es lunes).
+
+  DISEÑO: F2 «Grafito y trigo» adaptado como la maqueta (grafito #26292C, papel #F7F4EE, trigo #AD7615; 8 roles de
+  texto; títulos de cuadros y primera fila en gris). Saldo negativo en NEGRO con «−»; rojo solo para plata que sale
+  o algo que empeora; verde solo para lo que entra o mejora; dorado solo para «Lo importante» / «A revisar».
+  Celular < 600 px sin scroll lateral, botones ≥ 44 px.
+
+  LA CLAVE: igual que la v1 (?k= se saca de la barra ya mismo y queda recordada en el aparato: localStorage cf_clave;
+  #k= para favoritos). #prueba=1: consultas con origen=prueba (probar_cashflow.mjs y el watchdog). #hoy=AAAA-MM-DD:
+  día congelado para las pruebas (se pasa a todas las vistas que lo aceptan).
+
+  NOTAS: solo en este aparato (localStorage cf_notas, con try/catch), texto plano (siempre escapado; nunca HTML).
+  Rótulo «Solo en este aparato · todavía no se comparten». Las compartidas con autor vienen con el login de Microsoft.
+
+  LO QUE QUEDA PARA DESPUÉS (login de Microsoft / Vercel): notas compartidas con autor, «Abrir en Excel» (el archivo
+  trae CBU de terceros), sacar la clave del link.
+
+  Prueba: probar_cashflow.mjs v2 (mismo repo). La v1.2.1 quedó como probar_cashflow_v1.mjs.
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+
+<style>
+/* ---- F2 «Grafito y trigo» adaptado (maqueta v2). ---- */
+*{box-sizing:border-box}
+html{background:#F7F4EE}
+body{margin:0;background:#F7F4EE;color:#26292C;font-family:'Manrope','Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:#2F3437}a:hover{color:#15181A}
+button,input,textarea{font:inherit}
+button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid #2F3437;outline-offset:2px}
+img{max-width:100%}
+p{margin:0}
+.num{font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+.app{display:flex;min-height:100vh}
+/* columna lateral */
+.lat{width:236px;flex:none;background:#26292C;color:#D9D4CA;display:flex;flex-direction:column;gap:2px;padding:20px 12px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.lat-cab{display:flex;flex-direction:column;align-items:center;gap:10px;padding:0 4px 6px}
+.lat-trebol-btn{display:flex;align-items:center;justify-content:center;padding:6px 10px;border:0;border-radius:14px;background:transparent;cursor:pointer;min-height:44px}
+.lat-trebol-btn:hover{background:#33383C}
+.lat-trebol{width:58px;height:67px;flex:none;object-fit:contain}
+.lat-marca{font-size:12px;font-weight:800;letter-spacing:.14em;color:#FFFFFF;padding:4px 12px 2px;white-space:nowrap}
+.lat-emp{font-size:12px;color:#A9A49A;text-align:center;padding:4px 12px 16px;border-bottom:1px solid #3A3F43;margin-bottom:12px}
+.lat-cuerpo{display:flex;flex-direction:column;gap:2px;flex:1}
+.lat-btn{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;border:0;border-radius:8px;background:transparent;color:#D9D4CA;font-size:14px;font-weight:500;text-align:left;cursor:pointer}
+.lat-btn:hover{background:#33383C;color:#FFFFFF}
+.lat-btn[aria-current="page"]{background:#3A3F43;color:#FFFFFF;font-weight:700;box-shadow:inset 3px 0 0 #F7F4EE}
+.lat-sub{min-height:36px;padding:4px 12px 4px 36px;font-size:13px;color:#A9A49A}
+.lat-sub.lat-sub-on{color:#FFFFFF;font-weight:600}
+.lat-pie{margin-top:auto;font-size:12px;color:#A9A49A;padding:12px;border-top:1px solid #3A3F43;line-height:1.45}
+.lat-cerrada{width:60px;padding:20px 8px}
+.lat-cerrada .lat-cuerpo,.lat-cerrada .lat-marca{display:none}
+.lat-cerrada .lat-cab{padding:0}
+.lat-cerrada .lat-trebol{width:32px;height:37px}
+.lat :focus-visible,.tabbar :focus-visible,.tab-mas :focus-visible{outline:2px solid #F7F4EE;outline-offset:2px}
+/* notas en la columna */
+.lat-notas{margin:10px 0 0;padding-top:10px;border-top:1px solid #3A3F43;display:flex;flex-direction:column;gap:6px;flex:none}
+.lat-notas-tapa{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0}
+.lat-notas-t{flex:1;display:flex;align-items:center;gap:10px;min-height:44px;padding:8px 12px;border:0;border-radius:8px;background:transparent;font-size:14px;font-weight:500;color:#D9D4CA;cursor:pointer;text-align:left}
+.lat-notas-t:hover{background:#33383C;color:#FFFFFF}
+.lat-notas-t[aria-expanded="true"]{color:#FFFFFF;font-weight:700}
+.lat-notas-ico{width:20px;height:20px;flex:none}
+.lat-notas-fl{margin-left:auto;font-style:normal;font-size:12px;color:#A9A49A}
+.lat-cal{width:44px;height:44px;padding:0 6px;border:1px solid #8C8577;border-radius:6px;background:#33383C;color:transparent;color-scheme:dark;cursor:pointer;overflow:hidden}
+.lat-cal::-webkit-datetime-edit{display:none}
+.lat-cal::-webkit-calendar-picker-indicator{margin:0;cursor:pointer;opacity:.9}
+.lat-notas-hoja{display:flex;flex-direction:column;gap:8px;margin:0 4px;padding:10px 10px 12px;border:1px solid #D9C99A;border-left:4px solid #E39A86;border-radius:10px;color:#2B2F33;background:#FBF3CF}
+.nt-sub{font-size:12px;color:#6E5E40}
+.nt-rot{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A5A0C}
+.nt-lista{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto;padding-right:4px}
+.nt-lista-xl{max-height:55vh}
+.nt-vacio{margin:0;font-size:13px;color:#6E5E40;font-style:italic}
+.nt-dia{display:flex;align-items:center;gap:8px;margin:6px 0 2px;font-size:12px;font-weight:700;color:#6E5E40;flex:none}
+.nt-dia::before,.nt-dia::after{content:"";flex:1;height:1px;background:#D9C99A}
+.nt-dia span{padding:2px 10px;border-radius:999px;background:#F3E6B5;white-space:nowrap}
+.nt-msj{display:flex;flex-direction:column;gap:2px;padding:8px 10px 6px;border-radius:10px 10px 10px 3px;background:#FFFDF4;border:1px solid #E8DCAE;flex:none}
+.nt-tag{font-size:12px;font-weight:700;color:#8A5A0C}
+.nt-txt{font-size:14px;line-height:1.45;color:#2B2F33;white-space:pre-wrap;word-break:break-word}
+.nt-hora{align-self:flex-end;font-size:12px;font-weight:600;color:#6E5E40}
+.nt-inp{width:100%;min-height:64px;padding:8px 10px;border:1px solid #A88B73;border-radius:8px;background:#FFFDF4;color:#2B2F33;font-size:14px;line-height:1.45;resize:vertical}
+.nt-inp:focus{outline:2px solid #AD7615;outline-offset:1px}
+.nt-btn{align-self:flex-end;min-height:44px;padding:4px 16px;border:0;border-radius:8px;background:#5A4436;color:#FBF1C7;font-size:13px;font-weight:700;cursor:pointer}
+.nt-btn:hover{background:#3F2F25}
+.nt-filtro{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 4px 4px 10px;border-radius:999px;background:#F3E6B5;font-size:12px;font-weight:700;color:#5A4436}
+.nt-filtro-x{min-height:36px;padding:2px 10px;border:0;border-radius:999px;background:#FFFDF4;color:#5A4436;font-size:12px;font-weight:700;cursor:pointer}
+.nt-pag{border-radius:14px;overflow:hidden;background:#FBF3CF;border:1px solid #D9C99A;max-width:720px;width:100%}
+.nt-pag .nt-tapa{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:linear-gradient(180deg,#7A5E4C 0%,#5A4436 100%);border-bottom:3px solid #3F2F25;color:#FBF1C7;font-size:13px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.nt-pag .nt-tapa label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}
+.nt-cal-xl{min-height:44px;padding:4px 8px;border:1px solid #A88B73;border-radius:6px;background:#FBF1C7;color:#3F2F25;font-size:13px}
+.nt-pag .lat-notas-hoja{margin:0;border:0;border-left:4px solid #E39A86;border-radius:0;padding:14px 16px 16px 18px}
+/* cuerpo */
+.main{flex:1;min-width:0}
+.top{position:sticky;top:0;z-index:5;background:#F7F4EE;border-bottom:1px solid #E3DDD1;padding:10px 24px;display:flex;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;align-items:center}
+.miga{font-size:13px;color:#5D6166}
+.miga b{color:#26292C;font-weight:700}
+.top-der{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sello{display:flex;align-items:center;gap:8px;min-height:36px;padding:4px 12px;border:1px solid #D6CFC1;border-radius:999px;background:#FFFFFF;font-size:12px;font-weight:500;color:#5D6166;cursor:pointer;text-align:left}
+.sello i{width:8px;height:8px;border-radius:999px;background:#2F3437;display:inline-block;flex:none}
+.sello.cierra i{background:#237A4B}.sello.mirar i{background:#C9891C}.sello.falla i{background:#B0352A}
+.ayuda-btn{display:flex;align-items:center;gap:6px;min-height:36px;padding:4px 12px;border:1px solid #2F3437;background:#FFFFFF;color:#2F3437;border-radius:999px;cursor:pointer;font-size:12px;font-weight:600}
+.ayuda-btn span:first-child{width:18px;height:18px;border-radius:999px;border:1.5px solid #2F3437;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1}
+.wrap{max-width:1120px;margin:0 auto;padding:24px 24px 104px;display:flex;flex-direction:column;gap:28px}
+.t1{margin:0;font-size:24px;font-weight:800;line-height:1.2}
+.lead{margin:6px 0 0;font-size:15px;color:#5D6166;max-width:760px}
+.sec{display:flex;flex-direction:column;gap:12px}
+.sec-t{margin:0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5D6166;padding-bottom:8px;border-bottom:1px solid #E3DDD1;display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.sec-t span{font-weight:500;letter-spacing:0;text-transform:none}
+.sec-btn{width:100%;background:transparent;border:0;border-bottom:1px solid #E3DDD1;cursor:pointer;text-align:left;min-height:44px;padding:10px 0 8px;color:#5D6166;align-items:center}
+.sec-btn b{font-size:13px;font-weight:700;color:#26292C}
+.sec-btn:hover b{text-decoration:underline;text-underline-offset:3px}
+.sec-btn[aria-expanded="true"]{border-bottom-color:#26292C}
+.sec-fl{font-style:normal;display:inline-block;width:20px;color:#5D6166}
+.card{background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;padding:16px}
+.card-col{display:flex;flex-direction:column;gap:4px}
+.card-key{background:#FDF1D6;border:2px solid #AD7615}
+.imp{background:#FDF1D6;border:1px solid #E9CF95;border-left:6px solid #AD7615;border-radius:8px;padding:14px 18px;display:flex;flex-direction:column;gap:4px}
+.imp-t{font-size:12px;font-weight:800;letter-spacing:.12em;color:#8A5A0C}
+.imp p{margin:0;font-size:16px;line-height:1.5}
+.rot{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5D6166}
+.nota{font-size:12px;font-weight:500;color:#5D6166}
+.ref{font-size:12px;font-weight:500;color:#6B6F75}
+.kxl{font-size:28px;font-weight:800;line-height:1.1}
+.k{font-size:22px;font-weight:700;line-height:1.15}
+.u{font-size:12px;font-weight:600;color:#5D6166;margin-left:3px}
+.chip{display:inline-flex;align-items:center;gap:2px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid;white-space:nowrap;align-self:flex-start}
+.chip-up{color:#237A4B;background:#EAF4EE;border-color:#A9CDB8}
+.chip-down{color:#B0352A;background:#FBECEA;border-color:#E6B8B2}
+.chip-0{color:#5D6166;background:#F4F1EA;border-color:#E3DDD1}
+.chip-rev{color:#8A5A0C;background:#FDF1D6;border-color:#E9CF95}
+.pos{color:#237A4B}.neg{color:#B0352A}.gris{color:#5D6166}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.kcard{font:inherit;width:100%;text-align:left;display:flex;flex-direction:column;gap:4px;min-height:44px;padding:14px 16px;border-radius:12px;background:#FFFFFF;border:1px solid #D6CFC1;color:#26292C;cursor:pointer}
+.kcard:hover{border-color:#8C8577}
+.kcard[aria-pressed="true"]{border:2px solid #2F3437;box-shadow:inset 0 0 0 1px #2F3437}
+.kcard.card-key{background:#FDF1D6;border-color:#AD7615}
+.btn{min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid #8C8577;background:#FFFFFF;color:#26292C;font-size:14px;font-weight:600;cursor:pointer}
+.btn:hover{border-color:#2F3437}
+.btn[aria-pressed="true"]{background:#2F3437;border-color:#2F3437;color:#FFFFFF}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+.btn-sm{min-height:36px;padding:4px 12px;font-size:13px}
+.lnk{background:none;border:0;padding:2px 4px;min-height:36px;font-size:12px;font-weight:600;color:#2F3437;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.inp{min-height:44px;padding:6px 12px;border:1px solid #8C8577;border-radius:8px;background:#FFFFFF;color:#26292C;font-size:15px;max-width:100%}
+.ctrl{display:flex;flex-direction:column;gap:12px;background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;padding:16px}
+.ctrl-f{display:flex;gap:16px 28px;flex-wrap:wrap;align-items:flex-end}
+.campo{display:flex;flex-direction:column;gap:6px}
+.campo label{font-size:13px;font-weight:700}
+.campo label span{font-weight:500;color:#5D6166}
+.aviso{margin:0;font-size:13px;padding:8px 12px;background:#FDF1D6;border:1px solid #E9CF95;border-radius:8px}
+.err{margin:0;font-size:14px;color:#B0352A}
+.cargando{font-size:13px;color:#5D6166}
+.tbl{background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;overflow:hidden}
+.tbl-h{background:#ECE8E0;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tbl-h h3{margin:0;font-size:16px;font-weight:700}
+.tbl-h p{margin:2px 0 0;font-size:12px;color:#5D6166}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tr{display:grid;gap:12px;padding:9px 16px;border-top:1px solid #E3DDD1;font-size:14px;font-weight:500;align-items:center}
+.th{font-size:12px;font-weight:700;color:#5D6166;letter-spacing:.04em;text-transform:uppercase;background:#F4F1EA;border-top:0}
+.r{text-align:right}
+.tr-tot{border-top:2px solid #26292C;font-weight:700}
+.tr-sel{background:#FDF1D6}
+.tr-btn{width:100%;background:#FFFFFF;border:0;border-top:1px solid #E3DDD1;color:#26292C;text-align:left;cursor:pointer;min-height:44px}
+.tr-btn:hover{background:#FAF8F3}
+.tr-hijo{background:#FAF8F3;font-size:13px;padding-left:40px}
+.flecha{display:inline-block;width:16px;color:#5D6166}
+.viejo{color:#6B6F75}
+.fijo{position:sticky;left:0;z-index:1;background:#FFFFFF;margin-left:-16px;padding-left:16px;box-shadow:1px 0 0 #E3DDD1}
+.acc{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:56px;padding:12px 16px;background:#FFFFFF;border:1px solid #D6CFC1;border-radius:12px;color:#26292C;text-align:left;cursor:pointer}
+.acc:hover{border-color:#8C8577}
+.acc b{display:block;font-size:15px}
+.acc span{font-size:13px;color:#5D6166}
+.tiles-fila{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center}
+.tiles-t{font-size:13px;font-weight:700;color:#26292C}
+.tiles{display:flex;gap:6px;overflow-x:auto;padding:2px}
+.tile{flex:0 0 auto;min-width:84px;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:52px;padding:6px 8px;border:1px solid #D6CFC1;border-radius:10px;background:#FFFFFF;color:#26292C;cursor:pointer}
+.tile:hover{border-color:#8C8577}
+.tile[aria-pressed="true"]{border:2px solid #2F3437;padding:5px 7px;box-shadow:inset 0 0 0 1px #2F3437}
+.tile-l{font-size:12px;color:#5D6166}
+.tile-v{font-size:14px;font-weight:700}
+.pill-rev{font-size:13px;font-weight:700;padding:0 14px;border-radius:999px;background:#FDF1D6;color:#8A5A0C;border:1px solid #E9CF95;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.esq{display:flex;flex-direction:column;gap:12px}
+.esq .b{background:linear-gradient(90deg,#E6E3DA,#F2F0EA,#E6E3DA);background-size:200% 100%;animation:cfb 1.2s linear infinite;border-radius:8px}
+@keyframes cfb{to{background-position:-200% 0}}
+.celda-mm{text-align:right}
+.tag{font-size:11px;font-weight:600;letter-spacing:.04em;padding:2px 8px;border-radius:999px;background:#EFEDE8;color:#2F3437}
+.tag.presupuesto{background:#E6ECF3;color:#2B4C7E}
+.tag.bancos{background:#FFFFFF;border:1px solid #D6CFC1;color:#3F4540}
+/* Pekín */
+.pk-th{text-align:right;padding:10px 12px;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pk-th.on{background:#F4F1EA;box-shadow:inset 0 -2px 0 #2F3437}
+.pk-mark{width:100%;min-height:36px;padding:2px 8px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;background:#FFFFFF;color:#26292C;border:1px solid #8C8577}
+.pk-mark[aria-pressed="true"]{background:#2F3437;color:#FFFFFF;border-color:#2F3437}
+.pk-quitar{min-height:36px;padding:2px 6px;border:1px solid #D6CFC1;background:#FFFFFF;color:#5D6166;border-radius:6px;cursor:pointer;font-size:12px}
+.pk-fila{border-top:1px solid #E3DDD1}
+.pk-rh{text-align:left;padding:8px 12px;display:flex;flex-direction:column;position:sticky;left:0;z-index:1}
+.pk-c{text-align:right;padding:8px 12px}
+.pk-c.on{font-weight:700;background:#F4F1EA}
+.pk-last{padding:6px 12px;background:#F4F1EA;display:flex;justify-content:flex-end;align-items:center;gap:8px}
+/* Por motivo (de cashflow.html v1.2, adaptado) */
+.subt{border-top:1px solid #E3DDD1;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.subh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.subh h4{margin:0;font-size:15px;font-weight:800}
+.subp{font-size:13px;color:#5D6166}
+#cf-motivo{background:#FFFCF5}
+.dchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.dchip{flex:0 0 auto;min-height:44px;padding:6px 14px;border-radius:12px;cursor:pointer;border:1px solid #D6CFC1;background:#FFFFFF;color:#26292C;display:grid;text-align:left;font-size:13px;font-weight:600}
+.dchip small{font-size:12px;font-weight:600}
+.dchip[aria-pressed="true"]{border:2px solid #2F3437;padding:5px 13px;box-shadow:0 0 0 3px rgba(47,52,55,0.12)}
+.bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:#EFEDE8}
+.bar span{height:100%}
+.ley{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:#5D6166}
+.ley i,.gtag i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.grupos{border:1px solid #E3DDD1;border-radius:10px;overflow:hidden;background:#FFFFFF}
+.grupos details{border-top:1px solid #E3DDD1}
+.grupos details:first-child{border-top:0}
+.grupos summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:12px minmax(0,1fr) auto 14px;gap:12px;align-items:center;padding:12px 14px;min-height:44px}
+.grupos summary::-webkit-details-marker{display:none}
+.grupos summary:hover{background:#F7F4EE}
+.dot2{width:12px;height:12px;border-radius:3px}
+.st strong{display:block;font-size:15px;font-weight:700}.st small{color:#5D6166;font-size:13px}
+.sv{text-align:right;font-size:16px;font-weight:700}
+.car{color:#5D6166;font-size:12px;transition:transform .15s}
+.grupos details[open] .car{transform:rotate(180deg)}
+.items{padding:0 14px 12px 38px}
+.it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:8px 0;border-top:1px dashed #E3DDD1;font-size:14px}
+.it .d{min-width:0;overflow-wrap:anywhere;font-weight:500}
+.it .m{color:#5D6166;font-size:12px;font-weight:400}
+.it > .num{font-weight:600;text-align:right}
+.tagg{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:1px 7px;border-radius:999px;background:#EFEDE8;color:#5D6166;border:1px solid #D6CFC1;margin-left:6px;vertical-align:1px}
+.gtag{display:inline-flex;align-items:center;margin-right:8px;white-space:nowrap;font-size:12px;color:#5D6166}
+.regla{font-size:11px;color:#5D6166;font-style:italic}
+.detb{font-size:12px;color:#26292C;background:#EFEDE8;border-radius:6px;padding:4px 8px;margin-top:4px;display:inline-block;white-space:pre-line}
+.masbar{display:flex;flex-wrap:wrap;gap:4px 18px;padding-top:4px}
+.mas{border:0;background:none;color:#2F3437;font-size:13px;font-weight:700;padding:0 4px;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.filtro{font-size:13px;padding:6px 10px;border-radius:8px;background:#EFEDE8;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.x{border:1px solid #D6CFC1;background:#FFFFFF;border-radius:999px;min-width:44px;min-height:44px;cursor:pointer;font-size:13px}
+.lnk2{border:0;background:none;padding:0 4px;min-height:44px;display:inline-flex;align-items:center;color:#2F3437;font-weight:700;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.lect{font-size:14px;padding:10px 14px;background:#FFFFFF;border:1px solid #D6CFC1;border-radius:8px}
+.avsel{font-size:13px;padding:8px 12px;border-radius:8px;background:#EFEDE8;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.imp.rev{align-items:flex-start}
+.imp.rev .tx{display:flex;flex-direction:column;gap:10px;font-size:15px}
+.lista-row{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1.5fr) minmax(0,2fr) minmax(0,1fr);gap:12px;padding:9px 16px;border-top:1px solid #E3DDD1;font-size:14px;align-items:center;min-width:620px}
+.lista-row > div:last-child{text-align:right;font-weight:600}
+/* Dato crudo: tabla de filas */
+.cr-tabla{font-size:13px;border-collapse:collapse;min-width:100%}
+.cr-tabla th{position:sticky;top:0;background:#F4F1EA;text-align:left;font-size:11px;font-weight:700;color:#5D6166;letter-spacing:.04em;text-transform:uppercase;padding:8px 10px;border-bottom:1px solid #E3DDD1;white-space:nowrap}
+.cr-tabla td{padding:6px 10px;border-top:1px solid #EFEBE3;white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
+.cr-tabla td.n{text-align:right}
+.cr-tabla tr:hover td{background:#FAF8F3}
+.pag{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid #E3DDD1;font-size:13px}
+/* Estado */
+.dot{width:10px;height:10px;border-radius:999px;background:#5D6166;display:inline-block;flex:none}
+.dot.ok{background:#237A4B}.dot.revisar{background:#C9891C}.dot.falla{background:#B0352A}
+.bit{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.bit > div{padding:8px 10px;border-radius:8px;background:#EFEDE8;color:#5D6166}
+.bit > div.ok{background:#E4EDE7;color:#15181A}.bit > div.revisar{background:#FDF1D6;color:#8A5A0C}.bit > div.falla{background:#F9E7E4;color:#7A1F16}
+details.plain{font-size:13px;color:#5D6166}details.plain summary{cursor:pointer;font-weight:600;color:#26292C;min-height:36px}
+.ul{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
+/* ayuda */
+.help{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(20,20,19,0.45);z-index:50;display:flex;justify-content:flex-end}
+.help > div{width:100%;max-width:480px;height:100%;overflow-y:auto;background:#FFFFFF;color:#26292C;padding:24px 26px 40px;display:flex;flex-direction:column;gap:14px}
+.help h2{margin:0;font-size:22px;font-weight:800}.help h3{margin:8px 0 0;font-size:15px;font-weight:700}.help p{font-size:14px}
+/* celular */
+.tabbar{display:none}.tab-mas{display:none}
+footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12px}
+@media (max-width:1000px){.g5{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:860px){
+ .lat{display:none}
+ .tabbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;z-index:10;background:#26292C;padding:6px 6px calc(10px + env(safe-area-inset-bottom))}
+ .tab{min-height:56px;border:0;border-radius:8px;background:transparent;color:#D9D4CA;font-size:12px;padding:0 2px;font-weight:600;cursor:pointer;line-height:1.2}
+ .tab[aria-current="page"]{background:#3A3F43;color:#FFFFFF}
+ .tab-mas{display:flex;flex-direction:column;gap:4px;position:fixed;right:8px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:11;min-width:200px;padding:8px;border-radius:12px;background:#26292C;box-shadow:0 8px 20px rgba(0,0,0,.35)}
+ .tab-mas-btn{min-height:48px;padding:8px 14px;border:0;border-radius:8px;background:transparent;color:#D9D4CA;font-size:14px;font-weight:600;text-align:left;cursor:pointer}
+ .tab-mas-btn[aria-current="page"]{background:#3A3F43;color:#FFFFFF}
+ .top{padding:10px 16px}
+ .wrap{padding:16px 16px 110px}
+ .t1{font-size:20px}
+ .g3,.g2{grid-template-columns:minmax(0,1fr)}
+ .g5{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tiles-fila{grid-template-columns:minmax(0,1fr)}
+ .btn-sm,.lnk,.tr-btn,.nt-btn,.nt-filtro-x{min-height:44px}
+}
+@media (max-width:599px){
+ .g5,.g4{grid-template-columns:minmax(0,1fr)}
+ .items{padding-left:14px}
+ .lista-row{min-width:560px}
+ .lista-row > div:nth-child(2){display:none}
+ .lista-row{grid-template-columns:minmax(0,2fr) 0 minmax(0,1.6fr) minmax(0,1fr)}
+ .scroll .tr > :first-child,.scroll .lista-row > :first-child{position:sticky;left:0;background:#FFFFFF;z-index:1}
+ .scroll .th > :first-child{background:#F4F1EA}
+ .scroll .tr-sel > :first-child{background:#FDF1D6}
+ .pk-rh{min-width:120px}
+}
+@media (max-width:420px){.g5{grid-template-columns:minmax(0,1fr)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function () {
+  var API = "https://htxtrmfmrzvgukqzjjnh.supabase.co/functions/v1/tabla";
+  var VERSION = "cashflow.html v2 (02/10/2026)";
+  var hash = new URLSearchParams(location.hash.slice(1));
+  var query = new URLSearchParams(location.search);
+  var app = document.getElementById("app");
+
+  // --- la clave: #k= (favoritos) > ?k= (link para compartir) > la recordada en el aparato ----
+  var LS = "cf_clave", LSN = "cf_notas";
+  var leerLS = function (c) { try { return localStorage.getItem(c); } catch (e) { return null; } };
+  var guardarLS = function (c, v) { try { localStorage.setItem(c, v); } catch (e) { /* privado / bloqueado */ } };
+  var borrarLS = function (c) { try { localStorage.removeItem(c); } catch (e) { /* idem */ } };
+  var k = hash.get("k"), kOrigen = k ? "hash" : null;
+  if (!k && query.get("k")) { k = query.get("k"); kOrigen = "query"; }
+  if (!k) { k = leerLS(LS); kOrigen = k ? "memoria" : null; }
+  if (query.has("k")) {
+    query.delete("k");
+    var restoQuery = query.toString();
+    try { history.replaceState(null, "", location.pathname + (restoQuery ? "?" + restoQuery : "") + location.hash); } catch (e) { /* noop */ }
+  }
+  if (k) guardarLS(LS, k);
+  var esFecha = function (s) { return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s); };
+  var prueba = hash.get("prueba") === "1" || query.get("prueba") === "1";
+  var hoyParam = esFecha(hash.get("hoy")) ? hash.get("hoy") : (esFecha(query.get("hoy")) ? query.get("hoy") : null);
+
+  // --- utilidades de fecha y formato (las de la maqueta; acá no se calcula ningún saldo) ----
+  var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+  var iso = function (y, m, d) { return y + "-" + p2(m) + "-" + p2(d); };
+  var ms = function (s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)); };
+  var suma = function (s, n) { var t = new Date(ms(s) + n * 864e5); return iso(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate()); };
+  var dow = function (s) { return new Date(ms(s)).getUTCDay(); };
+  var cargaDe = function (bajada) { return suma(bajada, -1); };
+  var DIA3 = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+  var DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  var MES3 = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  var corta = function (s) { return s ? s.slice(8, 10) + "/" + s.slice(5, 7) : "—"; };
+  var larga = function (s) { return s ? corta(s) + "/" + s.slice(0, 4) : "—"; };
+  var media = function (s) { return s ? corta(s) + "/" + s.slice(2, 4) : "—"; };
+  var lab = function (s) { return s ? DIA3[dow(s)] + " " + corta(s) : "—"; };          // «mar 29/09»
+  var labL = function (s) { return s ? DIA3[dow(s)] + " " + larga(s) : "—"; };        // «mar 29/09/2026»
+  var labM = function (s) { return s ? DIA3[dow(s)] + " " + media(s) : "—"; };        // «mar 29/09/26»
+  var mesCorto = function (ym) { return MES3[+ym.slice(5, 7) - 1] + " " + ym.slice(2, 4); };
+  var nomMes = function (s) { return MESES[+s.slice(5, 7) - 1]; };
+  var r2 = function (v) { return Math.round(v * 100) / 100; };
+  var fmt = function (v) {
+    if (v === null || v === undefined) return "—";
+    var x = r2(v);
+    var a = Math.abs(x).toFixed(2).split(".");
+    return (x < 0 ? "−" : "") + a[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + a[1];
+  };
+  var fmtS = function (v) { return (r2(v) > 0 ? "+" : "") + fmt(v); };
+  var miles = function (v) { return v === null || v === undefined ? "—" : (v < 0 ? "−" : "") + String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, "."); };
+  var FA = function (v) { return (r2(v) > 0 ? "▲ " : (r2(v) < 0 ? "▼ " : "")) + fmtS(v); };
+  var FA2 = function (v) { return v === null || v === undefined ? "—" : FA(v); };
+  var esc = function (s) { return String(s === null || s === undefined ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+  var dif = function (b, a) { return a === null || a === undefined || b === null || b === undefined ? null : r2(b - a); };   // el único cálculo de la página (chips)
+  // Chip: verde = mejora, rojo = empeora, gris = igual o sin dato.
+  var chip = function (d) {
+    if (d === null || d === undefined || isNaN(d)) return '<span class="chip chip-0">—</span>';
+    var n = r2(d);
+    if (n === 0) return '<span class="chip chip-0">= 0,00</span>';
+    return '<span class="chip ' + (n > 0 ? "chip-up" : "chip-down") + '">' + FA(n) + "</span>";
+  };
+  var NEG = "#B0352A", POS = "#237A4B", GRIS = "#5D6166", TINTA = "#26292C";
+  // Saldos en negro con «−»; solo los movimientos y las diferencias llevan color.
+  var colD = function (v) { return v === null || v === undefined ? GRIS : (r2(v) < 0 ? NEG : (r2(v) > 0 ? POS : TINTA)); };
+  var vMM = function (v, cls) { return '<span class="num ' + (cls || "") + '">' + fmt(v) + '<span class="u">MM</span></span>'; };
+
+  // --- estado ----------------------------------------------------------------------
+  var PANT = [["inicio", "Inicio", "Inicio"], ["proy", "Saldo proyectado", "Saldo"], ["pekin", "Cuadro Pekín", "Pekín"], ["granos", "Granos", "Granos"], ["albor", "Foto Albor", "Albor"], ["crudo", "Dato crudo", "Crudo"], ["estado", "Estado de la web", "Estado"], ["notas", "Notas", "Notas"]];
+  var TIT = {}; PANT.forEach(function (p) { TIT[p[0]] = p[1]; });
+  var SEC = {
+    proy: [["fechas", "Fechas clave"], ["venc", "Vencimientos grandes"], ["dxd", "Saldo día por día"], ["rub", "Por rubro"]],
+    pekin: [["var", "Cambio entre cargas"], ["cuadro", "El cuadro"], ["panel", "Qué cambió"]],
+    albor: [["rxm", "Rubro × mes"], ["ctrl", "Control de la mañana"], ["cambios", "Cambios en Albor"]],
+    granos: [["gmes", "Por mes"], ["gstock", "Stock renglón por renglón"], ["gdet", "Gastos y cosecha"], ["gfle", "Fletes del rubro 16"]],
+    estado: [["ebit", "Últimos 10 días hábiles"], ["saltos", "Saltos grandes del total"]],
+    crudo: [["carch", "Archivos de esa carga"], ["ccols", "Qué columnas trae"]]
+  };
+  var PRIMERA_CARGA = "2026-07-13";   // la carga de la primera bajada guardada (dato estructural, igual que en la función)
+  var S = {
+    p: PANT.some(function (p) { return p[0] === hash.get("p"); }) ? hash.get("p") : "inicio",
+    help: false, latAb: leerLS("cf_lat") !== "0", subOcultas: false, masAb: false,
+    hoy: null, hoyError: null, pekin: null, pekinError: null, sello: null,
+    ab: { cuadro: true, gmes: true, ebit: true, carch: true, rxm: true, ctrl: true, panel: true, saltos: true, ccols: true },
+    // Saldo proyectado
+    parado: null, mira: null, pErr: "", dxd: hash.get("dxd") || "dias", diaAb: {}, rubAb: {}, rubTodos: false,
+    // Cuadro Pekín
+    cols: null, marks: null, ver: null, con10: hash.get("filas") !== "fin", add: false, addDia: null, addAviso: "",
+    rubSel: hash.get("rubro") && /^\d{2}A?$/.test(hash.get("rubro")) ? hash.get("rubro") : null,
+    compsTodos: hash.get("todos") === "1", motFil: null, ancla: hash.get("ancla") === "motivo" ? "motivo" : null, anclaPend: hash.get("ancla") === "motivo",
+    abN: {}, abiertos: {}, saltoAviso: false, sinEtiqueta: false,
+    dias: null, diasError: null, diasCargando: false,
+    // Granos · Foto Albor · Dato crudo · Estado · Notas
+    granos: null, granosError: null, grano: hash.get("grano") || "Todos",
+    rxm: hash.get("capa") === "1" ? "capa" : "rubro", capaAb: {},
+    control: null, controlError: null, venc: null, vencError: null,
+    crudo: null, crudoVer: hash.get("archivo") === "B" ? "B" : (hash.get("archivo") === "A" ? "A" : null), crudoQ: hash.get("q") || "", crudoPag: +(hash.get("pagina") || 1) || 1,
+    estado: null, estadoError: null,
+    notas: [], notaDia: esFecha(hash.get("nota_dia")) ? hash.get("nota_dia") : null, notasAb: false
+  };
+  try { var nn = JSON.parse(leerLS(LSN) || "[]"); if (Array.isArray(nn)) S.notas = nn.filter(function (n) { return n && typeof n.txt === "string"; }); } catch (e) { S.notas = []; }
+  var cacheD = {}, cacheE = {}, cacheV = {}, cacheDias = {}, cacheDia = {}, cacheCrudo = {}, cacheCF = {};
+  // Los 11 motivos de «Por motivo» en el orden de pantalla, con su color (decisión de Peio 02/10 14:27) y si abre solo.
+  var G = [
+    ["real", "Nuevo o eliminado", "Cambia el total: altas y bajas sin contrapartida", "#B0352A", true],
+    ["horizonte", "Entró al horizonte", "Meses nuevos que se suman a la proyección", "#6E8A8A", false],
+    ["ajuste", "Cambió el importe", "Mismo comprobante, otro monto (precio, TC, toneladas, rubro)", "#2B4C7E", false],
+    ["fecha", "Se corrió de fecha", "Mismo comprobante y monto, otra fecha: no cambia el total", "#C9891C", false],
+    ["anticipo", "Anticipo pagado o cobrado", "Salió o entró plata y la contrapartida quedó como anticipo", "#8C6D4F", true],
+    ["ejecutado", "Se pagó o se cobró", "Movimientos de banco del día y pendientes que se cancelaron", "#8E9196", false],
+    ["conciliacion", "Conciliación de bancos", "Bancos con fechas pasadas y ajuste del saldo de la bajada del día", "#D3CEC4", false],
+    ["vencio", "Vencido que sale del saldo", "Contratos y retenciones vencidos sin cobrar (regla de vencidos)", "#9A8F7A", false],
+    ["financiacion", "Préstamos y cauciones", "Plata que entra o sale por préstamos o cauciones: cambia la caja, no el negocio", "#5E6B73", false],
+    ["interno", "Pase entre cuentas propias", "Las dos puntas en bancos: netea cero", "#B9B2A4", false],
+    ["sin_explicar", "Sin explicar", "Diferencia entre la foto y el detalle: revisar", "#2F3437", true]
+  ];
+  var GN = {}; G.forEach(function (g) { GN[g[0]] = g; });
+  var SIN_LISTA = { conciliacion: 1, vencio: 1, sin_explicar: 1, financiacion: 1 };
+  var P_GRUPO = 5, P_LISTA = 20, PASO = 10, P_RUB = 8, SALTO_GRANDE = 500;
+  if (GN[hash.get("motivo")]) S.motFil = hash.get("motivo");
+  var RUB = { "01": "Bancos", "02": "Ventas", "02A": "Ventas · anticipos", "03": "Contratos de venta", "04": "Otros ingresos", "05": "Compras", "05A": "Compras · anticipos", "07": "Órdenes de compra", "09": "Otros egresos", "10": "Retenciones de ganancias", "11": "Cheques de terceros", "12": "Labores de terceros", "13": "Contratos dev. retenciones", "15": "Arrendamientos", "16": "Fletes de cereales", "17": "Labores pendientes" };
+
+  // --- pedir al servidor: la clave SIEMPRE por encabezado, nunca en la URL ----------------
+  function traer(p) {
+    if (prueba) p.set("origen", "prueba");
+    return fetch(API + "?" + p.toString(), { headers: { "x-cf-clave": k } }).then(function (r) {
+      if (r.status === 401) {
+        if (kOrigen === "memoria") { borrarLS(LS); throw new Error("La clave que recordaba este aparato ya no es válida."); }
+        throw new Error("La clave del link no es válida.");
+      }
+      if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("Error " + r.status)); });
+      return r.json();
+    });
+  }
+  var queHacer = function (m) {
+    return /clave/i.test(m) ? "Revisá que el link esté entero (lleva <code>?k=…</code> o <code>#k=…</code>). Si la clave cambió, pedí el link nuevo."
+      : /Failed to fetch|NetworkError|Load failed/i.test(m) ? "Parece un problema de conexión: probá de nuevo en un minuto."
+      : "Si vuelve a pasar, avisale a Peio con la hora y este mensaje.";
+  };
+  var conHoy = function (p) { if (hoyParam) p.set("hoy", hoyParam); return p; };
+  // Pedido genérico con caché: cache[key] = { cargando } | { data } | { error }. Al llegar: render + asegurar.
+  function pedir(cache, key, params, msgError) {
+    if (cache[key]) return;
+    cache[key] = { cargando: true };
+    traer(params)
+      .then(function (d) { cache[key] = { data: d }; })
+      .catch(function (e) { cache[key] = { error: e.message || msgError }; })
+      .then(function () { render(); asegurar(); });
+  }
+  function pedirHoy() {
+    S.hoyError = null; S.pekinError = null;
+    Promise.all([traer(conHoy(new URLSearchParams({ vista: "hoy" }))), traer(conHoy(new URLSearchParams({ vista: "pekin" })))])
+      .then(function (r) {
+        S.hoy = r[0]; S.pekin = r[1];
+        iniciarSelectores();
+        tick();
+      })
+      .catch(function (e) { S.hoyError = e.message || "El servidor no respondió."; render(); });
+  }
+  function pedirSello() {
+    traer(new URLSearchParams({ vista: "contraste" }))
+      .then(function (c) { var u = c.bitacora && c.bitacora[0] ? c.bitacora[0] : null; S.sello = { fecha: u ? u.fecha : null, veredicto: u ? u.veredicto : null, al_dia: !!c.al_dia, nota: u ? u.nota : null }; })
+      .catch(function () { S.sello = { error: true }; })
+      .then(function () { render(); });
+  }
+  function pedirUna(campo, vista, extra) {
+    if (S[campo] || S[campo + "Cargando"]) return;
+    S[campo + "Cargando"] = true; S[campo + "Error"] = null;
+    var p = conHoy(new URLSearchParams({ vista: vista }));
+    if (extra) Object.keys(extra).forEach(function (x) { p.set(x, extra[x]); });
+    traer(p).then(function (d) { S[campo] = d; if (campo === "granos" && d.granos && d.granos.indexOf(S.grano) < 0) S.grano = "Todos"; })
+      .catch(function (e) { S[campo + "Error"] = e.message || "No se pudo leer."; })
+      .then(function () { S[campo + "Cargando"] = false; render(); asegurar(); });
+  }
+  function pedirDias() {
+    if (S.dias || S.diasCargando || S.diasError) return;
+    S.diasCargando = true;
+    traer(new URLSearchParams({ vista: "variaciones_dias", hoy: S.hoy.hoy }))
+      .then(function (d) { if (!d || !Array.isArray(d.dias)) throw new Error("La función publicada no tiene la vista «variaciones_dias»."); S.dias = d; })
+      .catch(function (e) { S.diasError = e.message || "No se pudieron leer los días."; })
+      .then(function () { S.diasCargando = false; render(); asegurar(); });
+  }
+  var claveD = function (parado, contra, mira, rubro) { return [parado, contra, mira, rubro || ""].join("|"); };
+  function pedirDonde(parado, contra, mira, rubro) {
+    var p = new URLSearchParams({ vista: "dondeteparas", parado: parado, contra: contra, mira: mira, hoy: S.hoy.hoy });
+    if (rubro) p.set("rubro", rubro);
+    pedir(cacheD, claveD(parado, contra, mira, rubro), p, "No se pudo calcular.");
+  }
+  var claveE = function (a, b, fecha) { return [a, b, fecha].join("|"); };
+  function pedirEntre(a, b, fecha) { pedir(cacheE, claveE(a, b, fecha), new URLSearchParams({ vista: "entre", a: a, b: b, fecha: fecha, todos: "1" }), "No se pudieron leer los comprobantes."); }
+  var claveV = function (fecha, rubro, motivo) { return [fecha, rubro || "", motivo || ""].join("|"); };
+  function pedirVar(fecha, rubro, motivo) {
+    var p = new URLSearchParams({ vista: "variaciones", fecha: fecha });
+    if (rubro) p.set("rubro", rubro);
+    if (motivo) p.set("motivo", motivo);
+    var key = claveV(fecha, rubro, motivo);
+    if (cacheV[key]) return;
+    cacheV[key] = { cargando: true };
+    traer(p).then(function (d) { if (!d || typeof d.existe !== "boolean") throw new Error("La función publicada no tiene la vista «variaciones»."); cacheV[key] = { data: d }; })
+      .catch(function (e) { cacheV[key] = { error: e.message || "No se pudo agrupar por motivo." }; })
+      .then(function () { render(); asegurar(); });
+  }
+  function pedirDiasHasta(hasta) { pedir(cacheDias, hasta, conHoy(new URLSearchParams({ vista: "dias", hasta: hasta })), "No se pudo leer el día por día."); }
+  function pedirDia(dia) { pedir(cacheDia, dia, conHoy(new URLSearchParams({ vista: "dia", dia: dia })), "No se pudieron leer los comprobantes de ese día."); }
+  function pedirCrudo(carga) { pedir(cacheCrudo, carga, conHoy(new URLSearchParams({ vista: "crudo", carga: carga })), "No se pudieron leer los archivos de esa carga."); }
+  var claveCF = function (carga, archivo, q, pagina) { return [carga, archivo, q || "", pagina || 1].join("|"); };
+  function pedirCrudoFilas(carga, archivo, q, pagina) {
+    var p = conHoy(new URLSearchParams({ vista: "crudo_filas", carga: carga, archivo: archivo, pagina: String(pagina || 1) }));
+    if (q) p.set("q", q);
+    pedir(cacheCF, claveCF(carga, archivo, q, pagina), p, "No se pudo leer el archivo.");
+  }
+
+  // --- cargas (pekin.cargas): la carga disponible más cercana para un día, y su bajada ----
+  var cargas = function () { return S.pekin ? S.pekin.cargas : []; };
+  var cargaHoy = function () { var c = cargas().filter(function (x) { return x.es_hoy; })[0]; return c ? c.carga : cargaDe(S.hoy.hoy); };
+  var primeraCarga = function () { return cargas().length ? cargas()[0].carga : cargaHoy(); };
+  // La carga ≤ d que existe (si d no tuvo carga: la anterior, con aviso).
+  function cargaPara(d) {
+    var cs = cargas(), best = null;
+    for (var i = 0; i < cs.length; i++) if (cs[i].carga <= d) best = cs[i];
+    return best;
+  }
+  var bajadaDe = function (carga) { var c = cargas().filter(function (x) { return x.carga === carga; })[0]; return c ? c.bajada : null; };
+  var cargaDeBajada = function (bajada) { var c = cargas().filter(function (x) { return x.bajada === bajada; })[0]; return c ? c.carga : cargaDe(bajada); };
+  // «Parado el» por defecto: la carga del lunes anterior (o la anterior, si la carga de hoy es de un lunes).
+  function lunesAnterior() {
+    var ch = cargaHoy(), w = dow(ch);
+    var atras = (w + 6) % 7; if (atras === 0) atras = 7;
+    return suma(ch, -atras);
+  }
+  function iniciarSelectores() {
+    var H = S.hoy, ch = cargaHoy();
+    var pf = esFecha(hash.get("parado")) ? hash.get("parado") : lunesAnterior();
+    var cp = cargaPara(pf < primeraCarga() ? primeraCarga() : (pf > ch ? ch : pf));
+    S.parado = cp ? cp.carga : ch;
+    S.paradoPedido = pf;
+    S.mira = esFecha(hash.get("mira")) && hash.get("mira") <= H.horizonte && hash.get("mira") >= primeraCarga() ? hash.get("mira") : H.fecha_fija;
+    // Pekín: columnas = todas las cargas hábiles (más las marcadas); marcas = parado y hoy, o lo que diga el link.
+    var a = esFecha(hash.get("a")) ? cargaPara(hash.get("a")) : null, b = esFecha(hash.get("b")) ? cargaPara(hash.get("b")) : null;
+    S.marks = [a ? a.carga : S.parado, b ? b.carga : ch].sort();
+    if (S.marks[0] === S.marks[1]) S.marks = [S.marks[0]];
+    var hab = cargas().filter(function (c) { return c.habil; }).map(function (c) { return c.carga; });
+    (hash.get("cols") || "").split(",").forEach(function (c) { if (esFecha(c) && bajadaDe(c) && hab.indexOf(c) < 0) hab.push(c); });
+    S.marks.forEach(function (m) { if (hab.indexOf(m) < 0) hab.push(m); });
+    S.cols = hab.sort();
+    S.ver = esFecha(hash.get("ver")) ? hash.get("ver") : null;
+    S.addDia = ch;
+    S.crudoCarga = esFecha(hash.get("carga")) ? hash.get("carga") : null;
+    var sec = hash.get("sec");
+    if (sec) sec.split(",").forEach(function (s) { S.ab[s] = true; });
+    var diaAb = hash.get("dia"); if (esFecha(diaAb)) S.diaAb[diaAb] = true;
+    var rubAb = hash.get("rub"); if (rubAb) S.rubAb[rubAb] = true;
+  }
+
+  // --- deep link ------------------------------------------------------------------------
+  function guardarHash() {
+    var p = new URLSearchParams();
+    if (kOrigen === "hash") p.set("k", k);
+    if (S.p !== "inicio") p.set("p", S.p);
+    if (S.hoy) {
+      var H = S.hoy, ch = cargaHoy();
+      if (S.p === "proy" || S.p === "inicio") { if (S.parado !== lunesAnterior() && S.parado !== cargaPara(lunesAnterior()).carga) p.set("parado", S.parado); }
+      if (S.p === "proy") {
+        if (S.mira !== H.fecha_fija) p.set("mira", S.mira);
+        if (S.dxd !== "dias") p.set("dxd", S.dxd);
+        var da = Object.keys(S.diaAb).filter(function (d) { return S.diaAb[d]; }); if (da.length) p.set("dia", da[da.length - 1]);
+        var ra = Object.keys(S.rubAb).filter(function (d) { return S.rubAb[d]; }); if (ra.length) p.set("rub", ra[ra.length - 1]);
+      }
+      if (S.p === "pekin") {
+        if (S.marks[0] !== S.parado || S.marks.length < 2) p.set("a", S.marks[0]);
+        if (S.marks.length === 2 && S.marks[1] !== ch) p.set("b", S.marks[1]);
+        if (S.ver) p.set("ver", S.ver);
+        if (!S.con10) p.set("filas", "fin");
+        var extra = S.cols.filter(function (c) { var x = cargas().filter(function (y) { return y.carga === c; })[0]; return x && !x.habil && S.marks.indexOf(c) < 0; });
+        if (extra.length) p.set("cols", extra.join(","));
+        if (S.rubSel) p.set("rubro", S.rubSel);
+        if (S.motFil) p.set("motivo", S.motFil);
+        if (S.ancla) p.set("ancla", S.ancla);
+        if (S.compsTodos) p.set("todos", "1");
+      }
+      if (S.p === "granos" && S.grano !== "Todos") p.set("grano", S.grano);
+      if (S.p === "albor" && S.rxm === "capa") p.set("capa", "1");
+      if (S.p === "crudo") {
+        if (S.crudoCarga && S.crudoCarga !== S.parado) p.set("carga", S.crudoCarga);
+        if (S.crudoVer) p.set("archivo", S.crudoVer);
+        if (S.crudoQ) p.set("q", S.crudoQ);
+        if (S.crudoPag > 1) p.set("pagina", String(S.crudoPag));
+      }
+      if (S.p === "notas" && S.notaDia) p.set("nota_dia", S.notaDia);
+      var abiertas = Object.keys(S.ab).filter(function (s) { return S.ab[s] && (SEC[S.p] || []).some(function (x) { return x[0] === s; }) && !["cuadro", "gmes", "ebit", "carch", "rxm", "ctrl", "panel", "saltos", "ccols"].some(function (d) { return d === s; }); });
+      if (abiertas.length) p.set("sec", abiertas.join(","));
+    }
+    if (hoyParam) p.set("hoy", hoyParam);
+    if (prueba) p.set("prueba", "1");
+    var t = p.toString();
+    try { history.replaceState(null, "", location.pathname + location.search + (t ? "#" + t : "")); } catch (e) { /* noop */ }
+  }
+  function tick() { guardarHash(); render(); asegurar(); }
+  function irA(id) { var z = document.getElementById(id); if (z) z.scrollIntoView({ behavior: "auto", block: "start" }); }
+
+  // --- notas: solo en este aparato (localStorage), texto plano ------------------------------
+  function guardarNotas() { guardarLS(LSN, JSON.stringify(S.notas)); }
+  function agregarNota(txt, dia) {
+    txt = String(txt || "").trim().slice(0, 2000);
+    if (!txt) return false;
+    S.notas.push({ txt: txt, dia: dia || null, ts: Date.now() });
+    guardarNotas();
+    return true;
+  }
+  var notaHora = function (ts) { var t = new Date(ts); return p2(t.getHours()) + ":" + p2(t.getMinutes()); };
+  var notaDiaDe = function (ts) { var t = new Date(ts); return iso(t.getFullYear(), t.getMonth() + 1, t.getDate()); };
+  function notasHTML(idLista, idInp, dia, xl) {
+    var hoyR = notaDiaDe(Date.now());
+    var sel = S.notas.filter(function (n) { return !dia || n.dia === dia; });
+    var grupos = [];
+    sel.forEach(function (n) {
+      var kd = notaDiaDe(n.ts);
+      var g = grupos[grupos.length - 1];
+      if (!g || g.k !== kd) { g = { k: kd, items: [] }; grupos.push(g); }
+      g.items.push(n);
+    });
+    var h = '<div class="nt-rot">Solo en este aparato · todavía no se comparten</div>';
+    if (dia) h += '<div class="nt-filtro"><span>Carga del ' + esc(lab(dia)) + '</span><button type="button" class="nt-filtro-x" data-nota-dia="" aria-label="Ver todas las notas">× Todas</button></div>';
+    h += '<div id="' + idLista + '" class="nt-lista' + (xl ? " nt-lista-xl" : "") + '">';
+    if (!grupos.length) h += '<p class="nt-vacio">' + (dia ? "No hay notas sobre ese día." : "Todavía no hay notas.") + "</p>";
+    grupos.forEach(function (g) {
+      h += '<div class="nt-dia" role="separator"><span>' + (g.k === hoyR ? "Hoy" : esc(lab(g.k))) + "</span></div>";
+      g.items.forEach(function (n) {
+        h += '<div class="nt-msj">' + (n.dia ? '<span class="nt-tag">Sobre la carga del ' + esc(lab(n.dia)) + "</span>" : "") + '<span class="nt-txt">' + esc(n.txt) + '</span><span class="nt-hora num">' + esc(notaHora(n.ts)) + "</span></div>";
+      });
+    });
+    h += "</div>";
+    h += '<textarea id="' + idInp + '" class="nt-inp" rows="' + (xl ? 4 : 3) + '" aria-label="Nota nueva" placeholder="' + (dia ? "Nota sobre la carga del " + esc(corta(dia)) + "…" : "Escribí una nota…") + '"></textarea>' +
+      '<span class="nt-sub">No pegues CBU ni números de cuenta. Queda guardada en este aparato nada más.</span>' +
+      '<button type="button" class="nt-btn" data-nota-guardar="' + idInp + '" data-nota-para="' + esc(dia || "") + '">Guardar nota</button>';
+    return h;
+  }
+  // --- el valor de una carga en un corte (Pekín): clave = bajada ----------------------------
+  var corteIdx = function (fecha) { return S.pekin ? S.pekin.cortes.map(function (c) { return c.fecha; }).indexOf(fecha) : -1; };
+  function valPekin(carga, fecha) {
+    var b = bajadaDe(carga), i = corteIdx(fecha);
+    if (!b || i < 0 || !S.pekin.valores[b]) return null;
+    var v = S.pekin.valores[b][i];
+    return v === undefined ? null : v;
+  }
+  var cortePor = function (fecha) { return S.pekin.cortes.filter(function (c) { return c.fecha === fecha; })[0] || null; };
+  var subCorte = function (c) {
+    if (!c) return "";
+    if (c.tipo === "día 10") return "día 10 · " + DIA3[c.dia_semana] + (c.pago ? " (se paga el " + DIA3[dow(c.pago)] + " " + corta(c.pago) + ")" : "");
+    return "fin de mes · " + DIA3[c.dia_semana] + (c.fija ? " · fecha fija" : "");
+  };
+  var tituloCorte = function (c) {
+    if (c.fija) return corta(c.fecha) + " ★";
+    return (c.tipo === "día 10" ? "Día 10 · " : "Fin de ") + nomMes(c.fecha);
+  };
+  var txtParado = function () { return S.parado === cargaHoy() ? corta(S.parado) + " (hoy)" : corta(S.parado); };
+  var avisoParado = function () {
+    if (S.paradoPedido && S.paradoPedido !== S.parado && S.paradoPedido <= cargaHoy() && S.paradoPedido >= primeraCarga()) return "El " + labL(S.paradoPedido) + " no hubo carga en Albor: se usa la del " + labL(S.parado) + ".";
+    return "";
+  };
+  var cargasDisponibles = function () { return cargas().map(function (c) { return c.carga; }); };
+
+  // --- píldora «N a revisar» (variaciones_dias.ultimo.avisos, sin las «Lecturas») -------------
+  var aRevisar = function () {
+    if (!S.dias || !S.dias.ultimo) return 0;
+    return (S.dias.ultimo.avisos || []).filter(function (a) { return a.tipo !== "cambio_horizonte" && a.tipo !== "ejecutado_grande"; }).length;
+  };
+  function pildoraHTML() {
+    var n = aRevisar();
+    if (!n) return "";
+    var u = S.dias.ultimo;
+    return '<button type="button" class="pill-rev num" id="cf-pill" data-ir-par="1" data-ant="' + esc(cargaDeBajada(u.anterior)) + '" data-dia="' + esc(cargaDeBajada(u.fecha)) + '">' + n + " a revisar</button>";
+  }
+
+  // ===================================================================================
+  // INICIO
+  // ===================================================================================
+  function inicio() {
+    var H = S.hoy, P = S.pekin, ch = cargaHoy();
+    var fija = H.fecha_fija, pt = txtParado();
+    var h = '<section aria-label="Inicio" class="sec" style="gap: 24px;">';
+    h += '<div><h1 class="t1">¿Cómo estamos?</h1><p class="lead">Lo más importante de hoy, comparado con la carga del ' + esc(pt) + ". Tocá cualquier número para ver su detalle.</p></div>";
+    h += avisos(H.avisos.concat(P.avisos));
+    // LO IMPORTANTE: hoy · al 30/11 · contra la carga del lunes · peor día y qué entra al día siguiente.
+    var v30 = valPekin(ch, fija), p30 = valPekin(S.parado, fija), d30 = dif(v30, p30);
+    var mn = H.minimo_hasta_fija;
+    var t = "Hoy hay " + fmt(H.partida.total) + ". Al " + corta(fija) + " da " + fmt(v30);
+    if (d30 === null) t += ".";
+    else if (d30 === 0) t += ", igual que en la carga del " + pt + ".";
+    else t += ", " + fmt(Math.abs(d30)) + (d30 < 0 ? " menos" : " más") + " que en la carga del " + pt + ".";
+    if (mn) {
+      t += " El peor día hasta ahí es el " + labL(mn.fecha) + ", con " + fmt(mn.valor);
+      var sig = suma(mn.fecha, 1), rd = sig <= H.horizonte ? cacheDia[sig] : null;
+      if (rd && rd.data && rd.data.disponible) {
+        var mejor = null;
+        (rd.data.rubros || []).forEach(function (r) { (r.comprobantes || []).forEach(function (c) { if (c.mm > 0 && (!mejor || c.mm > mejor.mm)) mejor = { mm: c.mm, rubro: r.etiqueta, d: c.descripcion }; }); });
+        if (mejor) t += ": al día siguiente entra " + fmtS(mejor.mm) + " de " + mejor.rubro.toLowerCase() + " (" + mejor.d + ").";
+        else t += ".";
+      } else t += ".";
+    }
+    h += '<div class="imp" id="cf-imp"><div class="imp-t">LO IMPORTANTE</div><p class="num" id="cf-titular">' + esc(t) + "</p>" + (aRevisar() ? '<div style="padding-top: 6px;">' + pildoraHTML() + '<span class="nota" style="margin-left: 10px;">en la carga de hoy hay cosas para preguntar a administración · tocá para verlas por motivo</span></div>' : "") + "</div>";
+    // 5 tarjetas
+    var card = function (id, titulo, sub, fecha, v, p, cargando) {
+      return '<button type="button" class="kcard" id="' + id + '" data-p="proy" data-mira="' + esc(fecha) + '" aria-label="' + esc(titulo + ": " + fmt(v) + " millones. Ver el detalle") + '">' +
+        '<span class="rot">' + esc(titulo) + '</span><span class="nota">' + esc(sub) + "</span>" + vMM(v, "k") +
+        '<span class="ref num">carga ' + esc(pt) + ": " + (cargando ? "…" : p === null ? "— (todavía no proyectaba hasta ahí)" : fmt(p)) + "</span>" + chip(dif(v, p)) + "</button>";
+    };
+    var rH = cacheD[claveD(bajadaDe(S.parado), H.hoy, H.hoy)], dH = rH && rH.data ? rH.data : null;
+    var d10 = P.cortes.filter(function (c) { return c.tipo === "día 10" && c.fecha >= H.hoy; })[0];
+    var fm = P.cortes.filter(function (c) { return c.tipo === "fin de mes" && c.fecha >= H.hoy; })[0];
+    var cF = cortePor(fija);
+    var rM = mn ? cacheD[claveD(bajadaDe(S.parado), H.hoy, mn.fecha)] : null, dM = rM && rM.data ? rM.data : null;
+    h += '<div class="g5" id="cf-cards">' +
+      card("cf-card-hoy", "Hoy", "bancos " + fmt(H.partida.bancos) + " · vencidos sin resolver " + fmtS(H.partida.vencidos), H.hoy, H.partida.total, dH ? dH.total_a : null, !dH && !(rH && rH.error)) +
+      (d10 ? card("cf-card-d10", "Próximo día 10", subCorte(d10), d10.fecha, valPekin(ch, d10.fecha), valPekin(S.parado, d10.fecha)) : "") +
+      (fm ? card("cf-card-fm", "Fin de " + nomMes(fm.fecha), DIA3[fm.dia_semana] + " " + corta(fm.fecha), fm.fecha, valPekin(ch, fm.fecha), valPekin(S.parado, fm.fecha)) : "") +
+      (cF ? card("cf-card-fija", corta(fija) + " ★", "fecha fija", fija, valPekin(ch, fija), valPekin(S.parado, fija)) : "") +
+      (mn ? card("cf-card-peor", "Peor día hasta el " + corta(fija), labL(mn.fecha), mn.fecha, mn.valor, dM ? dM.total_a : null, !dM && !(rM && rM.error)) : "") +
+      "</div>";
+    h += '<div class="sec"><h2 class="sec-t">¿Qué querés ver?</h2><div class="g3">' +
+      acceso("proy", "Saldo proyectado", "Cómo viene la caja de hoy en adelante, fecha por fecha.") +
+      acceso("pekin", "Cuadro Pekín", "Qué daba cada fecha según el día en que se miró Albor, y por qué cambió.") +
+      acceso("granos", "Granos", "Stock, gastos comerciales y cosecha por grano y por mes.") +
+      acceso("albor", "Foto Albor", "Contraste con la planilla, rubro × mes (por rubro o por capa) y control de la mañana.") +
+      acceso("crudo", "Dato crudo", "El Excel original de Albor de cualquier carga.") +
+      acceso("notas", "Notas", "Leer y escribir notas. Por ahora, solo en este aparato.") +
+      acceso("estado", "Estado de la web", "¿El número de hoy está bien? Contraste, datos guardados y alarmas.") +
+      "</div></div>";
+    return h + "</section>";
+  }
+  var acceso = function (p, t, s) { return '<button type="button" class="acc" data-p="' + p + '"><div><b>' + t + "</b><span>" + s + '</span></div><span aria-hidden="true">→</span></button>'; };
+  var avisos = function (lista) { return (lista || []).map(function (a) { return '<p class="aviso">' + esc(a) + "</p>"; }).join(""); };
+  var secBtn = function (id, titulo, sub) {
+    var ab = !!S.ab[id];
+    return '<button type="button" class="sec-t sec-btn" id="sec-' + id + '" aria-expanded="' + ab + '" data-sec="' + id + '" style="scroll-margin-top: 72px;"><b><i class="sec-fl" aria-hidden="true">' + (ab ? "▾" : "▸") + "</i>" + esc(titulo) + "</b>" + (ab && sub ? "<span>" + esc(sub) + "</span>" : "") + "</button>";
+  };
+
+  // ===================================================================================
+  // SALDO PROYECTADO
+  // ===================================================================================
+  function proy() {
+    var H = S.hoy, P = S.pekin, ch = cargaHoy(), fe = S.mira, pt = txtParado();
+    var kP = bajadaDe(S.parado), kH = H.hoy;
+    var r = cacheD[claveD(kP, kH, fe)], d = r && r.data ? r.data : null;
+    var pasado = fe < kH;
+    var h = '<section aria-label="Saldo proyectado" class="sec" style="gap: 28px;">';
+    h += '<div><h1 class="t1">Saldo proyectado</h1><p class="lead">Cuánta plata habría en cada fecha si se cumple todo lo cargado en Albor. La proyección siempre arranca hoy. Negativo = faltaría plata.</p></div>';
+    // el selector
+    var lectura = S.parado === ch
+      ? "Saldo al " + larga(fe) + " según la proyección de hoy. Para ver qué cambió, poné en «Parado el» un día anterior."
+      : pasado ? "El " + larga(fe) + " ya pasó: se muestra el saldo que hubo ese día." : "Saldo al " + larga(fe) + ": la proyección de hoy contra la que había el " + pt + ".";
+    h += '<div class="ctrl"><div class="rot">Estas dos fechas mueven toda la pantalla</div><div class="ctrl-f">' +
+      '<div class="campo"><label for="cf-parado">Parado el <span>· el día cuya proyección comparás con la de hoy</span></label><input id="cf-parado" class="inp" type="date" value="' + esc(S.parado) + '" min="' + esc(primeraCarga()) + '" max="' + esc(ch) + '" data-set="parado"></div>' +
+      '<span aria-hidden="true" style="font-size: 20px; color: #8C8577; padding-bottom: 8px;">→</span>' +
+      '<div class="campo"><label for="cf-mira">Mirando al <span>· el día del saldo que querés ver</span></label><input id="cf-mira" class="inp" type="date" value="' + esc(fe) + '" min="' + esc(P.bancos_desde) + '" max="' + esc(H.horizonte) + '" data-set="mira"></div></div>' +
+      '<p class="num" id="cf-lectura" style="font-size: 14px; padding-top: 10px; border-top: 1px solid #E3DDD1;">' + esc(lectura) + "</p>" +
+      (S.pErr ? '<p class="err" role="alert">' + esc(S.pErr) + "</p>" : "") + (avisoParado() ? '<p class="aviso">' + esc(avisoParado()) + "</p>" : "") +
+      (d ? avisos(d.avisos) : "") + (r && r.error ? '<p class="err" role="alert">' + esc(r.error) + "</p>" : "") + "</div>";
+    // frase + tres tarjetas
+    var rdx = cacheDias[fe], ddx = rdx && rdx.data ? rdx.data : null;
+    var frase;
+    if (!d) frase = r && r.error ? "No se pudo calcular esa fecha." : "Calculando…";
+    else {
+      var yaPaso = pasado && kP > fe;
+      frase = (pasado ? "El " : "Al ") + larga(fe) + (pasado ? " había " : " da ") + fmt(d.total_b) +
+        (yaPaso ? "." : d.total_a === null ? "; la carga del " + pt + " todavía no proyectaba hasta ahí." : "; en la carga del " + pt + " daba " + fmt(d.total_a) + " (" + FA2(dif(d.total_b, d.total_a)) + ").");
+      if (!pasado && ddx && ddx.dias) { var fd = ddx.dias.filter(function (x) { return x.dia === fe; })[0]; if (fd && fd.mov !== null && r2(fd.mov) !== 0) frase += " Ese día se mueven " + FA(fd.mov) + "."; }
+    }
+    var cF = cortePor(fe);
+    var sub = pasado ? DIA3[dow(fe)] + " · ya pasó: lo que había según la carga de ese día" : (cF ? subCorte(cF) : DIA3[dow(fe)] + " · fecha elegida");
+    h += '<div class="sec"><p class="num" id="cf-frase" style="font-size: 16px;">' + esc(frase) + '</p><div class="g3">' +
+      '<div class="card card-col" id="cf-c-hoy"><span class="rot">Hoy</span><span class="nota num">bancos ' + fmt(H.partida.bancos) + " · vencidos sin resolver " + fmtS(H.partida.vencidos) + "</span>" + vMM(H.partida.total, "kxl") + "</div>" +
+      '<div class="card card-key card-col" id="cf-c-fe"><span class="rot">' + (pasado ? "El " : "Al ") + esc(larga(fe)) + '</span><span class="nota">' + esc(sub) + "</span>" + vMM(d ? d.total_b : null, "kxl") +
+        '<span class="ref num">' + (d ? (kP > fe && pasado ? "la carga del " + pt + " es posterior: esa fecha ya había pasado" : "carga " + pt + ": " + (d.total_a === null ? "— (todavía no proyectaba hasta ahí)" : fmt(d.total_a))) : "…") + "</span>" + (d ? chip(dif(d.total_b, d.total_a)) : "") + "</div>" +
+      '<div class="card card-col" id="cf-c-min"><span class="rot">Punto más bajo</span><span class="nota">' + (d ? "entre el " + corta(d.minimo_entre.desde) + " y el " + corta(d.minimo_entre.hasta) : "…") + "</span>" + vMM(d && d.minimo_b ? d.minimo_b.valor : null, "kxl") + '<span class="ref num">' + (d && d.minimo_b ? "el " + esc(labL(d.minimo_b.fecha)) : "sin dato") + "</span></div>" +
+      "</div></div>";
+    // tiras
+    var tile = function (x, l) { return '<button type="button" class="tile" aria-pressed="' + (fe === x.fecha ? "true" : "false") + '" data-set-mira="' + esc(x.fecha) + '" aria-label="Mirar el ' + esc(larga(x.fecha)) + ": " + esc(fmt(x.hoy)) + ' millones"><span class="tile-l">' + esc(l) + '</span><span class="tile-v num">' + fmt(x.hoy) + "</span></button>"; };
+    h += '<div class="sec"><div class="tiles-fila"><span class="tiles-t">Saldo a fin de mes</span><div class="tiles" id="cf-finmes">' + H.fin_de_mes.map(function (x) { return tile(x, mesCorto(x.fecha)); }).join("") + "</div></div>" +
+      '<div class="tiles-fila"><span class="tiles-t">Saldo al día 10</span><div class="tiles" id="cf-diez">' + H.dia_10.map(function (x) { return tile(x, "10 " + mesCorto(x.fecha)); }).join("") + "</div></div>" +
+      '<span class="nota">Con lo cargado hoy. Tocá uno para mirarlo: cambia «Mirando al» y toda la pantalla.</span></div>';
+    // Fechas clave
+    h += '<div class="sec">' + secBtn("fechas", "Fechas clave", "Día 10 (pago de arrendamientos, como está fechado en Albor) · fin de mes · ★ fecha fija. Tocá una para mirarla.");
+    if (S.ab.fechas) {
+      h += '<div class="g5" id="cf-clave">' + H.fechas_clave.map(function (q) {
+        var p = valPekin(S.parado, q.fecha), c = cortePor(q.fecha);
+        return '<button type="button" class="kcard" aria-pressed="' + (fe === q.fecha ? "true" : "false") + '" data-set-mira="' + esc(q.fecha) + '"><span class="rot">' + esc(q.fija ? q.titulo + " ★" : q.titulo) + '</span><span class="nota">' + esc(c ? subCorte(c) : q.nota) + "</span>" + vMM(q.hoy, "k") +
+          '<span class="ref num">carga ' + esc(pt) + ": " + (p === null ? "—" : fmt(p)) + "</span>" + chip(dif(q.hoy, p)) + "</button>";
+      }).join("") + "</div>";
+    }
+    h += "</div>";
+    // Vencimientos grandes
+    var V = S.venc;
+    h += '<div class="sec">' + secBtn("venc", "Vencimientos grandes", V && V.regla ? "Más de " + V.regla.umbral_mm + " MM en un solo pago de deuda o Fondo, de hoy al " + corta(H.horizonte) : "");
+    if (S.ab.venc) {
+      if (S.vencError) h += '<p class="err" role="alert">' + esc(S.vencError) + ' <button type="button" class="btn btn-sm" data-reintentar="venc">Reintentar</button></p>';
+      else if (!V) h += '<p class="cargando">Leyendo los vencimientos…</p>';
+      else {
+        h += avisos(V.avisos);
+        h += '<p class="nota">' + esc(V.regla.texto) + "</p>";
+        if (V.disponible) {
+          var gc = "grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);";
+          h += '<div class="tbl" id="cf-venc"><div class="scroll"><div style="min-width: 560px;"><div class="tr th num" style="' + gc + '"><span>Fecha</span><span>Qué</span><span class="r">Importe</span><span class="r">Saldo ese día</span></div>' +
+            (V.items.length ? V.items.map(function (v) {
+              return '<div class="tr num" style="' + gc + '"><span style="font-weight: 600;">' + esc(labM(v.fecha)) + '</span><span style="white-space: normal;">' + esc(v.descripcion) + '<br><span class="nota">' + esc(v.referente || "") + "</span></span>" +
+                '<span class="r neg" style="font-weight: 700;">' + fmt(v.mm) + '</span><span class="r">' + fmt(v.saldo_dia) + "</span></div>";
+            }).join("") : '<div class="tr"><span>Ningún vencimiento de ese tamaño con lo cargado hoy.</span></div>') + "</div></div></div>";
+        }
+      }
+    }
+    h += "</div>";
+    // El saldo día por día
+    h += '<div class="sec">' + secBtn("dxd", "El saldo día por día", "Día por día con lo cargado hoy, o la proyección del " + pt + " contra hoy");
+    if (S.ab.dxd) {
+      h += '<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" class="btn" aria-pressed="' + (S.dxd === "dias") + '" data-dxd="dias">Día por día</button><button type="button" class="btn" aria-pressed="' + (S.dxd === "proy") + '" data-dxd="proy">Proyección con la carga del ' + esc(pt) + "</button></div>";
+      if (S.dxd === "dias") {
+        var gd = "grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);";
+        h += '<div class="tbl" id="cf-dxd"><div class="tbl-h"><div><h3>' + esc(pasado ? "Día por día, del " + corta(fe) + " a hoy (lo que había cada día)" : "Día por día, de hoy al " + larga(fe)) + "</h3><p>Solo los días en que se mueve algo. " + (pasado ? "Lo que hubo cada día según la carga de ese día." : "Tocá un día para ver por rubro y por comprobante.") + "</p></div></div>";
+        if (rdx && rdx.error) h += '<p class="err" role="alert" style="padding: 12px 16px;">' + esc(rdx.error) + "</p>";
+        else if (!ddx) h += '<p class="cargando" style="padding: 12px 16px;">Leyendo el día por día…</p>';
+        else {
+          h += avisos(ddx.avisos);
+          h += '<div class="tr th num" style="' + gd + '"><span>Día</span><span class="r">Se mueve</span><span class="r">Saldo</span></div><div style="max-height: 520px; overflow-y: auto;">';
+          ddx.dias.forEach(function (x) {
+            var puede = ddx.modo === "proyeccion" && !x.partida;
+            var ab = !!S.diaAb[x.dia];
+            h += (puede ? '<button type="button" class="tr tr-btn num" aria-expanded="' + ab + '" data-dia-ab="' + esc(x.dia) + '" style="' + gd + '"><span><span class="flecha" aria-hidden="true">' + (ab ? "▾" : "▸") + "</span>" : '<div class="tr num" style="' + gd + '"><span>') +
+              esc(x.partida ? "Hoy " + lab(x.dia) + " · punto de partida" : labM(x.dia)) + '</span><span class="r" style="color: ' + colD(x.mov) + ';">' + (x.mov === null ? "—" : FA(x.mov)) + '</span><span class="r" style="font-weight: 700;">' + fmt(x.saldo) + "</span>" + (puede ? "</button>" : "</div>");
+            if (x.partida && x.rubros) h += '<div class="tr tr-hijo num" style="grid-template-columns: minmax(0, 1fr);"><span>' + esc(x.rubros.map(function (rr) { return rr.rubro + " " + rr.etiqueta + " " + fmt(rr.mov); }).join(" · ")) + "</span></div>";
+            if (puede && ab) h += diaHTML(x.dia, x.rubros);
+          });
+          h += "</div>";
+        }
+        h += "</div>";
+      } else {
+        var gp = "grid-template-columns: minmax(0, 1.5fr) repeat(3, minmax(0, 1fr));";
+        h += '<div class="tbl" id="cf-proyp"><div class="tbl-h"><div><h3>La proyección con la carga del ' + esc(pt) + '</h3><p>Qué daba cada fecha clave con lo cargado ese día, contra lo cargado hoy. «—» = ese día todavía no proyectaba hasta esa fecha.</p></div></div>' +
+          '<div class="scroll"><div style="min-width: 460px;"><div class="tr th num" style="' + gp + '"><span>Fecha</span><span class="r">Carga ' + esc(pt) + '</span><span class="r">Hoy</span><span class="r">Cambió</span></div>' +
+          P.cortes.map(function (c) {
+            var v = valPekin(ch, c.fecha), p = valPekin(S.parado, c.fecha);
+            return '<div class="tr num' + (c.fecha === fe ? " tr-sel" : "") + '" style="' + gp + '"><span>' + esc(tituloCorte(c) + " · " + larga(c.fecha)) + '</span><span class="r viejo">' + fmt(p) + '</span><span class="r" style="font-weight: 700;">' + fmt(v) + '</span><span class="r">' + chip(dif(v, p)) + "</span></div>";
+          }).join("") + "</div></div></div>";
+      }
+    }
+    h += "</div>";
+    // Por rubro
+    h += '<div class="sec">' + secBtn("rub", "Por rubro", "Qué rubro explica la diferencia al " + corta(fe) + ": carga del " + pt + " contra hoy");
+    if (S.ab.rub) {
+      if (!d) h += '<p class="cargando">Calculando…</p>';
+      else {
+        var gr = "grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));";
+        var filas = d.rubros.filter(function (x) { return (x.b !== null && r2(x.b) !== 0) || (x.a !== null && r2(x.a) !== 0); }).sort(function (x, y) { return Math.abs(y.cambio || 0) - Math.abs(x.cambio || 0); });
+        var rE = cacheE[claveE(kP, kH, fe)], dE = rE && rE.data ? rE.data : null;
+        h += '<div class="tbl" id="cf-rub"><div class="tbl-h"><div><h3>Al ' + esc(larga(fe)) + ": carga del " + esc(pt) + ' contra hoy</h3><p>Ordenado por lo que más cambió. Tocá un rubro para abrir sus comprobantes.</p></div><div style="display: flex; gap: 8px;"><button type="button" class="btn btn-sm" data-rub-todos="1">Abrir todo</button><button type="button" class="btn btn-sm" data-rub-todos="0">Cerrar todo</button></div></div>' +
+          '<div class="scroll"><div style="min-width: 560px;"><div class="tr th num" style="' + gr + '"><span>Rubro</span><span class="r">Carga ' + esc(pt) + '</span><span class="r">Hoy</span><span class="r">Cambió</span></div>';
+        filas.forEach(function (x) {
+          var ab = !!S.rubAb[x.rubro];
+          h += '<button type="button" class="tr tr-btn num" aria-expanded="' + ab + '" data-rub-ab="' + esc(x.rubro) + '" style="' + gr + '"><span><span class="flecha" aria-hidden="true">' + (ab ? "▾" : "▸") + "</span>" + esc(x.rubro + " · " + (x.etiqueta || x.nombre)) + '</span><span class="r viejo">' + fmt(x.a) + '</span><span class="r" style="font-weight: 700;">' + fmt(x.b) + '</span><span class="r">' + chip(dif(x.b, x.a)) + "</span></button>";
+          if (ab) {
+            if (S.parado === ch) h += '<div class="tr tr-hijo" style="grid-template-columns: minmax(0, 1fr);"><span>Estás comparando hoy contra hoy: no hay cambios. Elegí otra carga arriba.</span></div>';
+            else if (rE && rE.error) h += '<div class="tr tr-hijo" style="grid-template-columns: minmax(0, 1fr);"><span class="err">' + esc(rE.error) + "</span></div>";
+            else if (!dE) h += '<div class="tr tr-hijo" style="grid-template-columns: minmax(0, 1fr);"><span class="cargando">Buscando los comprobantes…</span></div>';
+            else if (dE.comprobantes === null) h += '<div class="tr tr-hijo" style="grid-template-columns: minmax(0, 1fr);"><span>' + esc((dE.avisos || []).join(" ")) + "</span></div>";
+            else {
+              var cs = dE.comprobantes.filter(function (c) { return c.rubro === x.rubro; });
+              var kk = "rub|" + x.rubro, cant = Math.min(cs.length, Math.max(P_RUB, S.abN[kk] || P_RUB));
+              if (!cs.length) h += '<div class="tr tr-hijo" style="grid-template-columns: minmax(0, 1fr);"><span>Ningún comprobante de este rubro cambió el saldo a esa fecha' + (x.rubro === "01" ? " (bancos es conciliación: va aparte)" : "") + ".</span></div>";
+              cs.slice(0, cant).forEach(function (c) {
+                h += '<div class="tr tr-hijo num" style="grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);"><span><b style="font-weight: 600;">' + esc(c.descripcion) + '</b><br><span class="nota">' + esc(quePaso(c.tipos, c.fecha_min, c.fecha_max) + (c.referente ? " · " + c.referente : "")) + '</span></span><span class="r" style="font-weight: 700; color: ' + colD(c.efecto) + ';">' + FA(c.efecto) + "</span></div>";
+              });
+              if (cs.length > cant || cant > P_RUB) h += '<div class="tr tr-hijo" style="grid-template-columns: minmax(0, 1fr);"><span class="masbar">' + (cs.length > cant ? '<button type="button" class="mas" data-mas="' + kk + '" data-d="1" data-n="' + P_RUB + '">Ver ' + Math.min(PASO, cs.length - cant) + " más · quedan " + (cs.length - cant) + "</button>" : "") + (cant > P_RUB ? '<button type="button" class="mas" data-mas="' + kk + '" data-d="-1" data-n="' + P_RUB + '">Ver menos</button>' : "") + "</span></div>";
+            }
+          }
+        });
+        h += '<div class="tr tr-tot num" style="' + gr + '"><span>Total</span><span class="r viejo">' + fmt(d.total_a) + '</span><span class="r">' + fmt(d.total_b) + '</span><span class="r">' + chip(dif(d.total_b, d.total_a)) + "</span></div></div></div></div>";
+      }
+    }
+    h += "</div>";
+    h += '<div class="card" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;"><span>¿Cómo vino cambiando cada fecha, carga por carga? Eso está en el Cuadro Pekín.</span><button type="button" class="btn" data-p="pekin">Ir al Cuadro Pekín →</button></div>';
+    return h + "</section>";
+  }
+  var quePaso = function (t, a, b) {
+    var f = a === b ? corta(a) : corta(a) + " a " + corta(b);
+    if (t === "ALTA") return "Se cargó · " + f;
+    if (t === "BAJA") return "Se dio de baja · era del " + f;
+    if (a === b) return "Cambió el importe · " + corta(a);
+    return "Cambió de fecha o de importe · entre el " + corta(a) + " y el " + corta(b);
+  };
+  // Un día abierto en «Día por día»: por rubro y por comprobante (?vista=dia).
+  function diaHTML(dia, rubrosDia) {
+    var rd = cacheDia[dia], dd = rd && rd.data ? rd.data : null;
+    var h = '<div class="tr tr-hijo" id="cf-dia-' + esc(dia) + '" style="grid-template-columns: minmax(0, 1fr); padding-left: 16px;"><div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">';
+    if (rd && rd.error) h += '<span class="err">' + esc(rd.error) + "</span>";
+    else if (!dd) h += '<span class="cargando">Leyendo los comprobantes del ' + esc(corta(dia)) + "…</span>";
+    else {
+      h += avisos(dd.avisos);
+      if (dd.disponible) {
+        h += '<span class="num" style="font-weight: 600;">' + esc(labL(dia)) + ": " + dd.n + " comprobantes · " + FA(dd.total) + " MM</span>";
+        dd.rubros.forEach(function (r) {
+          h += '<div style="padding-top: 4px;"><span class="num" style="font-weight: 700;">' + esc(r.rubro + " · " + r.etiqueta) + '</span> <span class="nota num">' + r.n + " · " + FA(r.total) + (r.cierra ? "" : " · no cierra con la proyección (" + fmt(r.dia_total) + ")") + "</span>";
+          r.comprobantes.forEach(function (c) {
+            h += '<div class="num" style="display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding: 3px 0; border-top: 1px dashed #E3DDD1;"><span style="white-space: normal;">' + esc(c.descripcion) + (c.referente ? ' <span class="nota">· ' + esc(c.referente) + "</span>" : "") + '</span><span style="font-weight: 600; color: ' + colD(c.mm) + ';">' + FA(c.mm) + "</span></div>";
+          });
+          h += "</div>";
+        });
+      }
+    }
+    return h + "</div></div>";
+  }
+  // ===================================================================================
+  // CUADRO PEKÍN (de Clari) + panel «Qué cambió» + «Por motivo»
+  // ===================================================================================
+  var colLabel = function (carga) { return carga === cargaHoy() ? "Hoy" : corta(carga); };
+  var colSub = function (carga) { return carga === cargaHoy() ? lab(carga) : DIA3[dow(carga)]; };
+  var marksAB = function () { var m = S.marks.slice().sort(); return { ma: m[0] || null, mb: m.length > 1 ? m[1] : null }; };
+  var cortesVisibles = function () { return S.pekin.cortes.filter(function (c) { return S.con10 || c.tipo !== "día 10"; }); };
+  // Si falta la fecha del panel, se mira al último corte (el horizonte).
+  var verActual = function () { if (S.ver && corteIdx(S.ver) >= 0) return S.ver; var cs = S.pekin.cortes; return cs.length ? cs[cs.length - 1].fecha : null; };
+
+  function pekin() {
+    var H = S.hoy, P = S.pekin, ch = cargaHoy();
+    var ab = marksAB(), ma = ab.ma, mb = ab.mb;
+    var la = ma ? colLabel(ma) : "—", lb = mb ? colLabel(mb) : "—";
+    var h = '<section id="cf-cuadro" aria-label="Cuadro Pekín" class="sec" style="gap: 24px; scroll-margin-top: 72px;">';
+    h += '<div><h1 class="t1">Cuadro Pekín</h1><p class="lead">El cuadro de Clari, armado con las cargas de Albor que guarda el bot. Cada columna es un día en que se miró Albor; cada fila, lo que daba una fecha ese día. Marcá dos columnas para compararlas.</p></div>';
+    h += avisos(P.avisos);
+    h += '<div class="ctrl num" style="flex-direction: row; flex-wrap: wrap; gap: 12px 40px; align-items: flex-start;">' +
+      '<div style="display: flex; flex-direction: column; gap: 2px;"><span class="rot">Parado el</span><span class="k" id="cf-pk-a">' + esc(la) + '</span><span class="nota">' + esc(ma ? "carga de Albor del " + labL(ma) : "marcá una columna") + "</span></div>" +
+      '<div style="display: flex; flex-direction: column; gap: 2px;"><span class="rot">Comparado con</span><span class="k" id="cf-pk-b">' + esc(lb) + '</span><span class="nota">' + esc(mb ? "carga de Albor del " + labL(mb) : "marcá otra columna") + "</span></div>" +
+      '<span class="nota" style="align-self: center; max-width: 280px;">Para cambiar desde dónde estás parado, tocá «Comparar» en otra columna. Para ver qué cambió mirando a una fecha futura, tocá una tarjeta de «Cambio entre cargas» o «Ver» en una fila.</span></div>';
+    // Cambio entre cargas: los próximos día 10 y fin de mes, y la fecha fija.
+    if (ma && mb) {
+      var d10 = P.cortes.filter(function (c) { return c.tipo === "día 10" && c.fecha >= H.hoy; })[0], fm = P.cortes.filter(function (c) { return c.tipo === "fin de mes" && c.fecha >= H.hoy; })[0], cF = cortePor(H.fecha_fija);
+      var tres = [d10, fm, cF].filter(function (c, i, arr) { return c && arr.indexOf(c) === i; });
+      h += '<div class="sec" id="sec-var-wrap">' + secBtn("var", "Cambio entre cargas", "Parado el " + la + " → " + (mb === ch ? "la carga de hoy (" + lab(ch) + ")" : "la carga del " + lb));
+      if (S.ab.var) {
+        h += '<div class="g3" id="cf-var">' + tres.map(function (c) {
+          var a = valPekin(ma, c.fecha), b = valPekin(mb, c.fecha);
+          return '<button type="button" class="kcard" data-ver="' + esc(c.fecha) + '" aria-label="Ver qué cambió mirando al ' + esc(larga(c.fecha)) + '"><span class="rot">Mirando al ' + esc(tituloCorte(c)) + "</span>" + vMM(b, "k") + '<span class="ref num">parado el ' + esc(la) + ": " + fmt(a) + "</span>" + chip(dif(b, a)) + '<span class="nota">Ver qué cambió →</span></button>';
+        }).join("") + "</div>";
+      }
+      h += "</div>";
+    }
+    // El cuadro
+    h += '<div class="sec" id="sec-cuadro-wrap">' + secBtn("cuadro", "El cuadro", "Columnas: días en que se miró Albor · filas: día 10 y fin de cada mes");
+    if (S.ab.cuadro) {
+      h += '<div style="display: flex; gap: 12px 20px; align-items: flex-end; flex-wrap: wrap;"><button type="button" class="btn" aria-expanded="' + S.add + '" data-add="1">' + (S.add ? "Cerrar" : "+ Agregar un día") + '</button>' +
+        '<div role="group" aria-label="Filas" style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" class="btn" aria-pressed="' + !S.con10 + '" data-con10="0">Solo fin de mes</button><button type="button" class="btn" aria-pressed="' + S.con10 + '" data-con10="1">Días 10 y fin de mes</button></div></div>';
+      if (S.add) {
+        var cp = cargaPara(S.addDia), yaEsta = cp && S.cols.indexOf(cp.carga) >= 0;
+        var av = cp && cp.carga !== S.addDia ? "El " + labL(S.addDia) + " no hubo carga en Albor: se agrega la del " + labL(cp.carga) + "." : "";
+        if (yaEsta) av = (av ? av + " " : "") + "Esa columna ya está en el cuadro.";
+        h += '<div class="ctrl"><div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;"><div class="campo"><label for="cf-agregar">Día de carga en Albor <span>· del ' + esc(corta(primeraCarga())) + ' a hoy</span></label><input id="cf-agregar" class="inp" type="date" value="' + esc(S.addDia) + '" min="' + esc(primeraCarga()) + '" max="' + esc(ch) + '" data-set="addDia"></div>' +
+          '<button type="button" class="btn" aria-pressed="true" data-agregar="' + esc(cp ? cp.carga : "") + '"' + (!cp || yaEsta ? " disabled" : "") + ">" + (cp ? "Agregar el " + esc(lab(cp.carga)) : "Agregar") + "</button></div>" +
+          (av ? '<p class="aviso">' + esc(av) + "</p>" : "") + '<span class="nota">Cada columna es Albor al cierre de ese día. Si elegís un sábado, domingo o feriado, se usa la carga del día hábil anterior.</span></div>';
+      }
+      var cols = S.cols, rows = cortesVisibles(), ver = S.ver;
+      var gcols = "display: grid; grid-template-columns: minmax(150px, 1.3fr) repeat(" + cols.length + ", minmax(124px, 1fr)) minmax(150px, 1.3fr);";
+      h += '<div class="tbl"><div class="scroll"><div class="num" id="cf-pekin" style="min-width: ' + (300 + cols.length * 132) + 'px; font-size: 14px;">';
+      h += '<div style="' + gcols + ' background: #ECE8E0;"><div style="text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; color: #5D6166; position: sticky; left: 0; background: #ECE8E0; z-index: 1;">FECHA</div>';
+      cols.forEach(function (c) {
+        var marked = S.marks.indexOf(c) >= 0;
+        h += '<div class="pk-th' + (marked ? " on" : "") + '"><span style="font-size: 14px; font-weight: 800;">' + esc(colLabel(c)) + '</span><span style="font-size: 12px; font-weight: 500; color: #5D6166;">' + esc(colSub(c)) + "</span>" +
+          '<button type="button" class="lnk" data-crudo="' + esc(c) + '" aria-label="Ver el dato crudo de la carga del ' + esc(colLabel(c)) + '">Dato crudo ↗</button>' +
+          '<div style="display: flex; flex-direction: column; gap: 4px; width: 100%;"><button type="button" class="pk-mark" aria-pressed="' + marked + '" data-mark="' + esc(c) + '" aria-label="' + (marked ? "Dejar de comparar " : "Comparar ") + esc(colLabel(c)) + '">' + (marked ? (c === ma ? "Parado el" : "Comparado con") : "Comparar") + "</button>" +
+          (cols.length > 2 && !marked ? '<button type="button" class="pk-quitar" data-quitar="' + esc(c) + '" aria-label="Quitar la columna ' + esc(colLabel(c)) + '">× Quitar</button>' : "") + "</div></div>";
+      });
+      h += '<div style="text-align: right; padding: 10px 12px; background: #E3DDD1; display: flex; flex-direction: column; align-items: flex-end;"><span style="font-size: 14px; font-weight: 800;">Cambió</span><span style="font-size: 12px; font-weight: 500; color: #5D6166;">' + esc(ma && mb ? "parado el " + la + " → " + (mb === ch ? "la carga de hoy" : "la carga del " + lb) : "marcá dos columnas") + "</span></div></div>";
+      rows.forEach(function (c) {
+        var a = ma ? valPekin(ma, c.fecha) : null, b = mb ? valPekin(mb, c.fecha) : null;
+        var puede = !!(ma && mb && a !== null && b !== null), sel = ver === c.fecha;
+        var bg = sel ? "#ECE8E0" : c.fija ? "#FAF8F3" : "#FFFFFF";
+        h += '<div class="pk-fila" data-corte="' + esc(c.fecha) + '" style="' + gcols + ' background: ' + bg + ';"><div class="pk-rh" style="background: ' + bg + ';"><span style="font-weight: 600;">' + esc((c.tipo === "día 10" ? "Día 10 " : "Fin ") + MES3[+c.fecha.slice(5, 7) - 1] + " " + c.fecha.slice(2, 4)) + '</span><span style="font-size: 12px; font-weight: 500; color: #5D6166;">' + esc(corta(c.fecha) + " · " + DIA3[c.dia_semana] + (c.fija ? " ★" : "")) + "</span></div>";
+        cols.forEach(function (col) { var v = valPekin(col, c.fecha); h += '<div class="pk-c' + (S.marks.indexOf(col) >= 0 ? " on" : "") + '">' + fmt(v) + "</div>"; });
+        h += '<div class="pk-last">' + chip(puede ? dif(b, a) : null) + (puede ? '<button type="button" class="btn btn-sm" data-ver="' + esc(c.fecha) + '" aria-pressed="' + sel + '" aria-label="Ver qué cambió al ' + esc(corta(c.fecha)) + '">Ver</button>' : "") + "</div></div>";
+      });
+      h += '</div></div><p class="nota" style="padding: 10px 14px; border-top: 1px solid #E3DDD1;">Cada columna es Albor al cierre de ese día (el bot lo baja a la madrugada siguiente). «—» = esa fecha ya había pasado o quedaba fuera del horizonte que se proyectaba ese día. Antes del ' + esc(corta(primeraCarga())) + " no se puede armar: esas bajadas no traían bancos. Albor proyecta hasta el " + esc(larga(H.horizonte)) + ".</p></div>";
+    }
+    h += "</div>";
+    // Panel «Qué cambió»
+    if (ma && mb && S.ver) h += panelHTML(ma, mb, S.ver);
+    return h + "</section>";
+  }
+
+  function panelHTML(ma, mb, ver) {
+    var H = S.hoy, ch = cargaHoy();
+    var ka = bajadaDe(ma), kb = bajadaDe(mb);
+    var r = cacheD[claveD(ka, kb, ver)], d = r && r.data ? r.data : null;
+    var la = colLabel(ma), lb = colLabel(mb), cV = cortePor(ver);
+    var h = '<div id="cf-panel" aria-live="polite" class="tbl" style="border: 2px solid #2F3437; scroll-margin-top: 72px;">';
+    h += '<div class="tbl-h" style="align-items: flex-start;"><div style="display: flex; flex-direction: column; gap: 2px;"><span class="rot">Qué cambió</span><span class="k num">Al ' + esc(labM(ver)) + '</span><span class="nota">' + esc(cV ? subCorte(cV) : "") + "</span>" +
+      (d ? '<p class="num" id="cf-panel-resumen" style="margin: 6px 0 0; font-size: 15px;">Con lo cargado ' + (mb === ch ? "hoy (" + esc(lab(ch)) + ")" : "el " + esc(lb)) + " da " + fmt(d.total_b) + ". Con lo cargado el " + esc(la) + " daba " + fmt(d.total_a) + ". Cambió " + FA2(dif(d.total_b, d.total_a)) + ".</p>" : "") +
+      '<p class="nota" style="margin: 2px 0 0;">Los rubros, ordenados por lo que más movió.</p></div><button type="button" class="btn btn-sm" data-ir="cf-cuadro">↑ Volver al cuadro</button></div>';
+    h += '<div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 16px; border-top: 1px solid #E3DDD1;"><span class="nota" style="margin-right: 4px;">Mirar otra fecha:</span>' +
+      cortesVisibles().filter(function (c) { return c.fecha >= H.hoy; }).map(function (c) { return '<button type="button" class="btn btn-sm" aria-pressed="' + (c.fecha === ver) + '" data-ver="' + esc(c.fecha) + '">' + esc(corta(c.fecha)) + "</button>"; }).join("") + "</div>";
+    if (r && r.error) h += '<p class="err" role="alert" style="padding: 12px 16px;">' + esc(r.error) + "</p>";
+    else if (!d) h += '<p class="cargando" style="padding: 12px 16px;">Calculando…</p>';
+    if (d) {
+      h += '<div style="padding: 0 16px;">' + avisos(d.avisos) + "</div>";
+      var gp = "grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));";
+      var rub = d.rubros.filter(function (x) { return (x.a !== null && r2(x.a) !== 0) || (x.b !== null && r2(x.b) !== 0); }).sort(function (x, y) { return Math.abs(y.cambio || 0) - Math.abs(x.cambio || 0); });
+      var rvS = d.misma_bajada ? null : cacheV[claveV(kb, S.rubSel, null)];
+      var seguido = !!(rvS && rvS.data && rvS.data.existe && rvS.data.anterior === ka && rvS.data.fecha === kb);
+      h += '<div class="scroll"><div style="min-width: 520px;" id="cf-panel-rubros"><div class="tr th num" style="' + gp + '"><span>Rubro</span><span class="r">Cargado al ' + esc(la) + '</span><span class="r">' + (mb === ch ? "Cargado hoy" : "Cargado al " + esc(lb)) + '</span><span class="r">Cambió</span></div>' +
+        rub.map(function (x) {
+          return '<button type="button" class="tr tr-btn num' + (S.rubSel === x.rubro ? " tr-sel" : "") + '" data-rubro="' + esc(x.rubro) + '" style="' + gp + '" aria-pressed="' + (S.rubSel === x.rubro) + '"><span>' + esc(x.rubro + " · " + (x.etiqueta || x.nombre)) + '</span><span class="r viejo">' + fmt(x.a) + '</span><span class="r" style="font-weight: 700;">' + fmt(x.b) + '</span><span class="r">' + chip(dif(x.b, x.a)) + "</span></button>";
+        }).join("") +
+        '<div class="tr tr-tot num" id="cf-panel-total" style="' + gp + '"><span>Total</span><span class="r viejo">' + fmt(d.total_a) + '</span><span class="r">' + fmt(d.total_b) + '</span><span class="r">' + chip(dif(d.total_b, d.total_a)) + "</span></div></div></div>";
+      h += '<p class="nota" style="padding: 8px 16px;">Las dos columnas son el saldo de ese rubro al ' + esc(corta(ver)) + " parado en cada carga: proyectado si la fecha todavía no había llegado, real si ya había pasado." + (seguido ? " Tocá un rubro para que «Por motivo» muestre solo ese rubro" + (S.rubSel ? ' (<button type="button" class="lnk2" data-ir="cf-motivo" style="min-height: 0; padding: 0;">ir ↓</button>)' : "") + "." : "") + "</p>";
+      // ¿Por qué cambió? comprobantes · De un día para el otro · Por motivo · lista
+      h += '<div id="cf-comps" style="border-top: 1px solid #E3DDD1;"><div style="padding: 14px 16px 6px;"><span style="font-size: 15px; font-weight: 700;">¿Por qué cambió? Comprobantes que más movieron</span><p class="nota">Qué se cargó, se borró o cambió de fecha en Albor entre las dos cargas. No es plata que entró o salió: son cambios en la carga.</p></div>';
+      h += diaADiaHTML(d, ka, kb);
+      h += porMotivoHTML(d, ka, kb);
+      h += listaHTML(d, ka, kb, ver, seguido, rvS);
+      h += "</div>";
+    }
+    // Notas de esos días
+    var enPk = [ma, mb];
+    var nts = S.notas.filter(function (n) { return n.dia && enPk.indexOf(n.dia) >= 0; });
+    h += '<div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #E3DDD1; background: #FAF8F3;"><span style="font-size: 15px; font-weight: 700;">Notas de esos días</span><span class="nt-rot">Solo en este aparato · todavía no se comparten</span>' +
+      (nts.length ? nts.map(function (n) { return '<div style="padding: 10px 12px; border: 1px solid #D6CFC1; border-radius: 8px; font-size: 14px; background: #FFFFFF;"><span class="nota" style="display: block;">Carga del ' + esc(lab(n.dia)) + " · escrita el " + esc(lab(notaDiaDe(n.ts))) + " " + esc(notaHora(n.ts)) + '</span><span class="nt-txt">' + esc(n.txt) + "</span></div>"; }).join("")
+        : '<div style="padding: 10px 12px; border: 1px dashed #8C8577; border-radius: 8px; font-size: 14px; color: #5D6166;">No hay notas de estos dos días todavía.</div>') +
+      '<textarea id="cf-nota-pk" class="nt-inp" rows="2" aria-label="Nota sobre esta carga" placeholder="Nota sobre la carga del ' + esc(corta(mb)) + '…"></textarea>' +
+      '<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;"><span class="nota">Queda en «Notas» y acá, pegada a la carga del ' + esc(lab(mb)) + '.</span><button type="button" class="nt-btn" data-nota-guardar="cf-nota-pk" data-nota-para="' + esc(mb) + '">Guardar nota</button></div></div>';
+    return h + "</div>";
+  }
+
+  // ---- Por motivo (de cashflow.html v1.2) ----
+  var rubNombre = function (cod, d) {
+    var x = d && d.rubros ? d.rubros.filter(function (r) { return r.rubro === cod; })[0] : null;
+    return cod + " · " + (x && x.etiqueta ? x.etiqueta : (RUB[cod] || ""));
+  };
+  function lineas(F, d) {
+    var pares = {}, orden = [], out = [];
+    F.forEach(function (x) {
+      if (x.par !== null && x.par !== undefined) { if (!pares[x.par]) { pares[x.par] = []; orden.push(x.par); } pares[x.par].push(x); return; }
+      out.push({ g: x.motivo, t: (x.referente ? x.referente + " · " : "") + (x.descripcion || ""), det: x.detalle || null, s: rubNombre(x.rubro_cod, d), f1: x.fecha, f2: null, n: x.mm, b: Math.abs(x.mm), w: !!x.al_borde, r: x.regla || "", rc: [x.rubro_cod] });
+    });
+    orden.forEach(function (kk) {
+      var a = pares[kk], g = a[0].motivo;
+      var otro = a.filter(function (x) { return x.rubro_cod !== "01"; })[0] || a[0];
+      var neg = a.filter(function (x) { return x.mm < 0; })[0] || a[0];
+      var pos = a.filter(function (x) { return x !== neg; })[0] || a[0];
+      var t, f1, f2 = null;
+      if (g === "interno") { t = (neg.referente || "") + " → " + (pos.referente || ""); f1 = neg.fecha; }
+      else {
+        t = (otro.referente ? otro.referente + " · " : "") + (otro.descripcion || "");
+        var baja = a.filter(function (x) { return x.tipo === "BAJA"; })[0], bco = a.filter(function (x) { return x.rubro_cod === "01"; })[0];
+        var o = bco || baja || neg, dd = a.filter(function (x) { return x !== o; })[0] || o;
+        f1 = o.fecha; f2 = dd.fecha === o.fecha ? null : dd.fecha;
+      }
+      var rcs = []; a.forEach(function (x) { if (rcs.indexOf(x.rubro_cod) < 0) rcs.push(x.rubro_cod); });
+      var det = (a.filter(function (x) { return x.detalle; })[0] || {}).detalle || null;
+      var nn = 0, bb = 0; a.forEach(function (x) { nn += x.mm; bb = Math.max(bb, Math.abs(x.mm)); });
+      out.push({ g: g, t: t, det: det, s: rcs.map(function (c) { return rubNombre(c, d); }).join(" ↔ "), f1: f1, f2: f2, n: r2(nn), b: bb, w: a.some(function (x) { return x.al_borde; }), r: a[0].regla || "", rc: rcs });
+    });
+    return out;
+  }
+  var lineasCargadas = function (V, g) { return lineas(V.filas.filter(function (f) { return f.motivo === g; })).length; };
+  var mueve = function (l) { return (l.g === "fecha" || l.g === "interno" || l.g === "anticipo") && Math.abs(l.n) < 0.005; };
+  var peso = function (l) { return mueve(l) ? l.b : Math.abs(l.n); };
+  function itemHTML(l) {
+    var meta = [l.s, l.f2 ? corta(l.f1) + " → " + corta(l.f2) : corta(l.f1)].filter(Boolean).join(" · ");
+    return '<div class="it"><div class="d">' + esc(l.t) + (l.w ? '<span class="tagg">PASÓ AL ÚLTIMO MES</span>' : "") + '<div class="m num">' + esc(meta) + (mueve(l) ? " · movió " + fmt(l.b) : "") + "</div>" +
+      (l.det ? '<div class="detb">' + esc(l.det) + "</div>" : "") + '<div class="regla">' + esc(l.r) + "</div></div>" + '<span class="num" style="color: ' + colD(l.n) + ';">' + FA(l.n) + "</span></div>";
+  }
+  function masBar(key, total, n, cargando) {
+    var cant = Math.min(total, Math.max(n, S.abN[key] || n)), rest = total - cant, b = "";
+    if (rest > 0) b += '<button type="button" class="mas" data-mas="' + key + '" data-d="1" data-n="' + n + '">Ver ' + Math.min(PASO, rest) + " más · quedan " + miles(rest) + "</button>";
+    if (cant > n) b += '<button type="button" class="mas" data-mas="' + key + '" data-d="-1" data-n="' + n + '">Ver menos</button>';
+    if (cargando) b += '<span class="cargando">Cargando…</span>';
+    return { cant: cant, html: b ? '<div class="masbar">' + b + "</div>" : "" };
+  }
+  var sinCodigo = function (s) { return String(s || "").replace(/^\d+ - /, ""); };
+  function avisosMotivoHTML(V) {
+    var rev = [], lec = [], txt = [];
+    (V.avisos || []).forEach(function (a) {
+      if (a.tipo === "al_borde") { rev.push("Pago anticipado a <b>" + esc(sinCodigo(a.referente)) + "</b>: salió caja el " + corta(a.desde) + ' (<span class="num">' + fmt(a.mm) + " MM</span>) y la contrapartida quedó como anticipo al " + corta(a.hasta) + ", último mes del horizonte. No cambia el total, pero empeora los meses de en medio hasta que se apliquen facturas."); txt.push("Pago anticipado a " + sinCodigo(a.referente) + ": salió caja el " + corta(a.desde) + " (" + fmt(a.mm) + " MM) y la contrapartida quedó como anticipo al " + corta(a.hasta) + ". ¿Se van a aplicar facturas antes?"); }
+      else if (a.tipo === "doble_carga_oc") { rev.push("Posible doble carga: <b>" + esc(sinCodigo(a.referente)) + "</b> tiene la OC-" + esc(a.oc) + ' viva en 07 Órdenes de compra (<span class="num">' + fmt(a.oc_mm) + '</span>) y facturas de esa OC en 05 Compras (<span class="num">' + fmt(a.facturas_mm) + "</span>). Confirmar si las facturas consumen la OC."); txt.push("Posible doble carga: " + sinCodigo(a.referente) + " tiene la OC-" + a.oc + " viva en 07 (" + fmt(a.oc_mm) + ") y facturas de esa OC en 05 (" + fmt(a.facturas_mm) + "). ¿Las facturas consumen la OC?"); }
+      else if (a.tipo === "conciliacion_grande") { rev.push('Albor reacomodó movimientos de bancos con fechas pasadas: se movieron <span class="num">' + fmt(a.movido_mm) + ' MM</span> que netean <span class="num">' + FA(a.neto_mm) + "</span>. Van en «Conciliación de bancos», no en pagos del día."); txt.push("Conciliación de bancos grande: se movieron " + fmt(a.movido_mm) + " MM con fechas pasadas, netean " + FA(a.neto_mm) + "."); }
+      else if (a.tipo === "caida_filas") { rev.push("La bajada trajo " + miles(a.filas) + " filas contra " + miles(a.filas_antes) + " del día anterior. Leer este día con cuidado."); txt.push("La bajada trajo " + a.filas + " filas contra " + a.filas_antes + " del día anterior."); }
+      else if (a.tipo === "sin_explicar") { rev.push('Hay <span class="num">' + FA(a.mm) + " MM</span> que el detalle no explica. Revisar."); txt.push("Hay " + FA(a.mm) + " MM que el detalle no explica."); }
+      else if (a.tipo === "ejecutado_grande") lec.push('«Se pagó o se cobró» da neto <span class="num">' + FA(a.neto_mm) + " MM</span>: no son pagos neutros, cambian el saldo. Mirá el detalle de ese grupo.");
+      else if (a.tipo === "cambio_horizonte") lec.push("Cambió el horizonte de " + corta(a.antes) + " a " + corta(a.ahora) + ": los meses nuevos van en «Entró al horizonte».");
+    });
+    var h = "";
+    if (rev.length) {
+      var asunto = "Cash Flow: consulta sobre la carga del " + larga(cargaDeBajada(V.fecha)), cuerpo = "Hola Giorgi,\n\nEn la carga del " + larga(cargaDeBajada(V.fecha)) + " (contra la del " + larga(cargaDeBajada(V.anterior)) + ") aparece esto para revisar:\n\n" + txt.map(function (t) { return "- " + t; }).join("\n") + "\n\n¿Me confirmás?\n\nGracias";
+      h += '<div class="imp rev" id="cf-arevisar"><div class="imp-t" style="white-space: nowrap; padding-top: 2px;">A REVISAR</div><div class="tx">' + rev.map(function (t) { return "<div>" + t + "</div>"; }).join("") +
+        '<a class="btn" style="align-self: flex-start; display: inline-flex; align-items: center; text-decoration: none;" href="mailto:gvidela@lacau.com.ar?subject=' + encodeURIComponent(asunto) + "&body=" + encodeURIComponent(cuerpo) + '" id="cf-giorgi">Armar consulta para Giorgi</a>' +
+        '<span class="nota">Abre un borrador en tu correo con el texto de arriba. No manda nada solo.</span></div></div>';
+    }
+    h += lec.map(function (t) { return '<p class="lect"><b style="color: #5D6166;">Lectura · </b>' + t + "</p>"; }).join("");
+    return h;
+  }
+  function porMotivoHTML(d, ka, kb) {
+    var rs = S.rubSel;
+    var h = '<div class="subt" id="cf-motivo"><div class="subh"><h4>Por motivo</h4>';
+    var cab = function (extra) { return h + (extra || "") + "</div>"; };
+    if (d.misma_bajada) return cab() + '<p class="subp" id="cf-motivo-txt">Estás parado en la misma carga que la que comparás. Tocá uno de los botones de arriba para ver un día contra el anterior.</p></div>';
+    var rv = cacheV[claveV(kb, rs, null)], V = rv && rv.data ? rv.data : null;
+    if (!rv || rv.cargando) return cab() + '<p class="cargando" id="cf-motivo-txt">Agrupando por motivo…</p></div>';
+    if (rv.error) return cab() + '<p class="subp" id="cf-motivo-txt" role="alert">No se pudo agrupar por motivo: ' + esc(rv.error) + " La lista de abajo sigue funcionando como siempre.</p></div>";
+    if (!V.existe) return cab() + '<p class="subp" id="cf-motivo-txt">No hay carga del ' + esc(larga(cargaDeBajada(kb))) + " o de su día anterior para agrupar por motivo.</p></div>";
+    if (!(V.anterior === ka && V.fecha === kb)) return cab() + '<p class="subp" id="cf-motivo-txt">Por ahora la agrupación por motivo es de un día para el otro (elegiste ' + esc(corta(cargaDeBajada(ka))) + " → " + esc(corta(cargaDeBajada(kb))) + "): tocá uno de los botones de arriba. La lista de comprobantes de abajo sí vale para cualquier par de días.</p></div>";
+    if (!V.cierra) return cab() + '<p class="subp" id="cf-motivo-txt" role="alert">La agrupación por motivo de la carga del ' + esc(larga(cargaDeBajada(kb))) + " no cierra contra la foto (" + FA(V.suma_mm) + " contra " + FA(V.total_mm) + " MM): no se muestra. Quedó para revisar en la función de la base; la lista de abajo sigue como siempre.</p></div>";
+    h = cab('<span class="num" id="cf-motivo-suma" style="font-weight: 700; color: ' + colD(V.total_mm) + ';">suma ' + FA(V.total_mm) + " MM</span>");
+    h += '<p class="subp">Lo mismo de esta tarjeta, agrupado por qué lo movió, al ' + esc(corta(V.horizonte)) + " (fin del horizonte), aunque mires otra fecha arriba. Acá sí entra bancos: pagos, cobros, pases y conciliación. Cada movimiento cae en un solo motivo y dice con qué regla se juntó con su contrapartida. La suma de los motivos se controla contra la diferencia de la foto" + (rs ? " del rubro" : "") + "; si no cierra, aparece «Sin explicar» y un aviso.</p>";
+    h += avisosMotivoHTML(V);
+    if (rs) h += '<div class="filtro" id="cf-motivo-filtro">Mirando solo <b>' + esc(rubNombre(rs, d)) + '</b> (elegido en la tabla de rubros) <button type="button" class="x" data-rubro="' + esc(rs) + '" aria-label="Quitar el filtro de rubro">✕</button></div>';
+    if (V.n === 0 || !Object.keys(V.motivos).length) return h + '<p class="subp" id="cf-motivo-txt">Sin cambios entre esas dos cargas' + (rs ? " en este rubro" : "") + ".</p></div>";
+    var tb = 0; G.forEach(function (g) { if (V.motivos[g[0]]) tb += V.motivos[g[0]].movido_mm; });
+    if (!tb) tb = 1;
+    h += '<div style="display: flex; flex-direction: column; gap: 8px;"><div class="bar" id="cf-motivo-bar">' + G.map(function (g) { var m = V.motivos[g[0]]; return m ? '<span style="width: ' + (m.movido_mm / tb * 100).toFixed(1) + "%; background: " + g[3] + ';"></span>' : ""; }).join("") + "</div>" +
+      '<div class="ley">' + G.filter(function (g) { return V.motivos[g[0]]; }).map(function (g) { return '<span><i style="background: ' + g[3] + ';"></i>' + g[1] + "</span>"; }).join("") + "<span>(ancho = monto movido)</span></div></div>";
+    h += '<div class="grupos" id="cf-motivo-grupos">' + G.map(function (g) {
+      var m = V.motivos[g[0]];
+      if (!m) return "";
+      var full = cacheV[claveV(kb, rs, g[0])];
+      var filas = full && full.data ? full.data.filas : V.filas.filter(function (f) { return f.motivo === g[0]; });
+      var arr = lineas(filas, d).sort(function (p, q) { return peso(q) - peso(p); });
+      var key = "G" + g[0] + "|" + (rs || "");
+      var op = S.abiertos[key] !== undefined ? S.abiertos[key] : (g[4] || arr.some(function (l) { return l.w; }));
+      var bar = masBar(key, m.n_lineas, P_GRUPO, !!(full && full.cargando));
+      var enLista = arr.some(function (l) { return l.rc.some(function (c) { return c !== "01"; }); }) && !SIN_LISTA[g[0]];
+      var movio = ["fecha", "interno", "anticipo", "conciliacion", "horizonte"].indexOf(g[0]) >= 0 ? " · movió " + fmt(m.movido_mm) : "";
+      return '<details data-o="' + key + '" data-motivo="' + g[0] + '"' + (op ? " open" : "") + '><summary><span class="dot2" style="background: ' + g[3] + ';"></span><span class="st"><strong>' + g[1] + "</strong><small>" + g[2] + " · " + miles(m.n_lineas) + movio + "</small></span>" +
+        '<span class="sv num" style="color: ' + colD(m.neto_mm) + ';">' + FA(m.neto_mm) + '</span><span class="car">▾</span></summary><div class="items">' +
+        arr.slice(0, bar.cant).map(itemHTML).join("") + bar.html + (enLista ? '<button type="button" class="lnk2" data-mot="' + g[0] + '">Ver estos en la lista de comprobantes ↓</button>' : "") + "</div></details>";
+    }).join("") + "</div>";
+    return h + "</div>";
+  }
+  function diaADiaHTML(d, ka, kb) {
+    var h = '<div class="subt" id="cf-dias" style="border-top: 0;"><div class="subh"><h4>De un día para el otro</h4><span class="nota">atajo: marca arriba «Parado el» en la carga anterior y «Comparado con» en esa carga</span></div>';
+    if (S.diasError) return h + '<p class="subp">' + esc(S.diasError) + "</p></div>";
+    if (!S.dias) return h + '<p class="cargando">Leyendo los últimos días…</p></div>';
+    h += '<div class="dchips" role="group" aria-label="Elegir una carga contra la anterior">' + S.dias.dias.map(function (x) {
+      var on = !d.misma_bajada && x.anterior === ka && x.fecha === kb;
+      return '<button type="button" class="dchip" aria-pressed="' + on + '" data-ant="' + esc(cargaDeBajada(x.anterior)) + '" data-dia="' + esc(cargaDeBajada(x.fecha)) + '" data-ir-par="1"><span>' + esc(corta(cargaDeBajada(x.anterior)) + " → " + corta(cargaDeBajada(x.fecha))) + '</span><small class="num" style="color: ' + colD(x.total_mm) + ';">' + FA(x.total_mm) + "</small></button>";
+    }).join("") + "</div>";
+    if (S.saltoAviso && !d.misma_bajada) h += '<div class="avsel" id="cf-salto">Arriba quedó: <b>parado el ' + esc(corta(cargaDeBajada(ka))) + "</b> comparado con <b>" + (kb === S.hoy.hoy ? "hoy" : "el " + esc(corta(cargaDeBajada(kb)))) + '</b>. <button type="button" class="btn btn-sm" data-volver="1">Volver a la carga del ' + esc(corta(S.parado)) + " contra hoy</button></div>";
+    return h + "</div>";
+  }
+  function listaHTML(d, ka, kb, ver, seguido, rvS) {
+    var H = S.hoy, rs = S.rubSel, cMira = corta(ver);
+    var h = '<div class="subt" id="cf-lista" style="padding-left: 0; padding-right: 0;"><div class="subh" style="padding: 0 16px;"><h4>Comprobantes que más movieron</h4></div>';
+    if (d.misma_bajada) return h + '<p style="padding: 4px 16px 12px; font-size: 13px; color: #5D6166;">Estás parado en la misma carga que la que comparás. Marcá otra columna para ver qué cambió.</p></div>';
+    var re = cacheE[claveE(ka, kb, ver)], e = re && re.data ? re.data : null;
+    if (!re || re.cargando) return h + '<p class="cargando" style="padding: 4px 16px 12px;">Buscando los comprobantes…</p></div>';
+    if (re.error) return h + '<p class="err" role="alert" style="padding: 4px 16px 12px;">' + esc(re.error) + "</p></div>";
+    if (e.comprobantes === null) return h + '<div style="padding: 4px 16px 12px;">' + avisos(e.avisos) + "</div></div>";
+    var mapa = {}, VV = seguido ? rvS.data : null;
+    var cruzar = function (filas) { (filas || []).forEach(function (f) { if (f.rubro_cod === "01" || f.id >= 100000) return; var kk = f.rubro_cod + "|" + (f.descripcion || "") + "|" + (f.referente || ""); if (!mapa[kk]) mapa[kk] = []; if (mapa[kk].indexOf(f.motivo) < 0) mapa[kk].push(f.motivo); }); };
+    if (VV) { cruzar(VV.filas); var vSin = cacheV[claveV(kb, null, null)]; if (vSin && vSin.data && vSin.data.existe) cruzar(vSin.data.filas); G.forEach(function (g) { var fv = cacheV[claveV(kb, rs, g[0])]; if (fv && fv.data) cruzar(fv.data.filas); var fl = cacheV[claveV(kb, null, g[0])]; if (fl && fl.data) cruzar(fl.data.filas); }); }
+    var C = e.comprobantes.map(function (c) { return { c: c, m: mapa[c.rubro + "|" + (c.descripcion || "") + "|" + (c.referente || "")] || [] }; });
+    var motFil = seguido && GN[S.motFil] ? S.motFil : null;
+    if (motFil) C = C.filter(function (x) { return x.m.indexOf(motFil) >= 0; });
+    var kC = "comp|" + (motFil || ""), nC = P_LISTA;
+    var cantC = S.compsTodos ? C.length : Math.min(C.length, Math.max(nC, S.abN[kC] || nC)), restC = C.length - cantC;
+    var vis = C.slice(0, cantC);
+    S.sinEtiqueta = seguido && vis.some(function (x) { return !x.m.length; });
+    var filtroCarg = motFil && !(cacheV[claveV(kb, null, motFil)] && cacheV[claveV(kb, null, motFil)].data);
+    h += '<div style="padding: 0 16px 6px;">' + avisos(e.avisos) + "</div>";
+    h += '<p class="num" id="cf-lista-txt" style="padding: 0 16px 6px; font-size: 13px; color: #5D6166;">Entre lo cargado el ' + esc(corta(cargaDeBajada(ka))) + " y " + (kb === H.hoy ? "hoy" : "el " + esc(corta(cargaDeBajada(kb)))) + " cambiaron " + miles(e.n_comprobantes) + " comprobantes, que mueven " + fmtS(e.total) + " MM el saldo al " + esc(cMira) + "; la conciliación de bancos movió " + fmtS(e.bancos) + ". " +
+      (e.comprobantes.length ? (motFil ? "Filtrados por motivo:" : (vis.length < C.length ? "Estos son los " + miles(vis.length) + " que más pesan:" : "Estos son todos, de mayor a menor:")) : "Ningún comprobante cambió el saldo a esa fecha.") + "</p>";
+    if (motFil) {
+      h += '<div class="filtro" id="cf-lista-filtro" style="margin: 0 16px 8px;">Solo: <b>' + GN[motFil][1] + '</b> (elegido en «Por motivo») <button type="button" class="x" data-mot="' + motFil + '" aria-label="Quitar el filtro de motivo">✕</button></div>';
+      if (!C.length && !filtroCarg) {
+        var soloBancos = VV.filas.filter(function (f) { return f.motivo === motFil; }).every(function (f) { return f.rubro_cod === "01" || f.id >= 100000; });
+        h += '<p style="padding: 4px 16px 12px; font-size: 13px; color: #5D6166;">' + (soloBancos ? "Estos movimientos son de bancos: en esta lista van aparte, en la conciliación de bancos." : "Ningún comprobante de la lista cae en «" + GN[motFil][1] + "».") + "</p>";
+      }
+      if (filtroCarg) h += '<p class="cargando" style="padding: 0 16px 8px;">Completando el motivo…</p>';
+    }
+    if (vis.length) {
+      h += '<div class="scroll" id="cf-lista-tabla"><div class="lista-row th"><div>Comprobante</div><div>Rubro</div><div>Qué pasó (fecha de cobro o pago)</div><div>Efecto al ' + esc(cMira) + "</div></div>" +
+        vis.map(function (x) {
+          var c = x.c;
+          return '<div class="lista-row"><div style="white-space: normal;"><div style="font-weight: 500;">' + esc(c.descripcion) + '</div><div class="nota">' + esc(c.referente) + "</div></div>" +
+            '<div style="white-space: normal; font-size: 13px; color: #5D6166;">' + esc(c.rubro + " · " + (c.etiqueta || c.nombre)) + "</div>" +
+            '<div style="white-space: normal; font-size: 13px;">' + esc(quePaso(c.tipos, c.fecha_min, c.fecha_max)) + (x.m.length ? "<br>" + x.m.map(function (m) { return '<span class="gtag"><i style="background: ' + GN[m][3] + ';"></i>' + GN[m][1] + "</span>"; }).join("") : "") + "</div>" +
+            '<div class="num" style="color: ' + colD(c.efecto) + ';">' + FA(c.efecto) + "</div></div>";
+        }).join("") + "</div>";
+    }
+    if (restC > 0 || cantC > nC) {
+      h += '<div class="masbar" style="padding: 6px 16px 0;">' + (restC > 0 ? '<button type="button" class="mas" data-mas="' + kC + '" data-d="1" data-n="' + nC + '">Ver ' + Math.min(PASO, restC) + " más · quedan " + miles(restC) + "</button>" : "") + (cantC > nC ? '<button type="button" class="mas" data-mas="' + kC + '" data-d="-1" data-n="' + nC + '">Ver menos</button>' : "") + "</div>";
+    }
+    return h + "</div>";
+  }
+  // Lo que necesita el panel del Pekín, si todavía no está pedido (lista, Por motivo, motivos enteros, etiquetas).
+  function asegurarPanel() {
+    var ab = marksAB();
+    if (!ab.ma || !ab.mb || !S.ver) return;
+    var ka = bajadaDe(ab.ma), kb = bajadaDe(ab.mb);
+    if (!ka || !kb || ka === kb) return;
+    pedirDonde(ka, kb, S.ver);
+    var c = cacheD[claveD(ka, kb, S.ver)];
+    if (!(c && c.data && !c.data.misma_bajada)) return;
+    pedirEntre(ka, kb, S.ver);
+    pedirVar(kb, S.rubSel, null);
+    var v = cacheV[claveV(kb, S.rubSel, null)];
+    if (v && v.data && v.data.existe && v.data.anterior === ka) {
+      Object.keys(S.abN).forEach(function (key) {
+        var m = key.match(/^G(\w+)\|/);
+        if (!m || !v.data.motivos[m[1]]) return;
+        if (S.abN[key] > lineasCargadas(v.data, m[1]) && !cacheV[claveV(kb, S.rubSel, m[1])]) pedirVar(kb, S.rubSel, m[1]);
+      });
+      if (S.motFil) pedirVar(kb, null, S.motFil);
+      if (S.sinEtiqueta) {
+        var vb = cacheV[claveV(kb, null, null)], VB = vb && vb.data && vb.data.existe ? vb.data : (S.rubSel ? null : v.data);
+        if (!vb) pedirVar(kb, null, null);
+        else if (VB) Object.keys(VB.motivos).forEach(function (g) { if (SIN_LISTA[g] || VB.motivos[g].n_lineas <= lineasCargadas(VB, g)) return; pedirVar(kb, null, g); });
+      }
+    }
+  }
+  function limpiarPanel() { S.motFil = null; S.abN = {}; S.abiertos = {}; S.compsTodos = false; S.saltoAviso = false; S.ancla = null; S.anclaPend = false; S.rubSel = null; S.sinEtiqueta = false; }
+  // Un par de cargas (anterior → fecha) desde la píldora, «Ver por qué» o un botón «De un día para el otro».
+  function irAPar(ant, fecha, conAncla) {
+    if (!bajadaDe(ant) || !bajadaDe(fecha) || ant >= fecha) return;
+    limpiarPanel();
+    S.marks = [ant, fecha];
+    S.cols = S.cols.concat([ant, fecha].filter(function (c) { return S.cols.indexOf(c) < 0; })).sort();
+    if (!S.ver) S.ver = verActual();
+    S.saltoAviso = true;
+    S.ab.panel = true;
+    if (conAncla) { S.ancla = "motivo"; S.anclaPend = true; }
+    S.p = "pekin";
+  }
+  // ===================================================================================
+  // GRANOS (?vista=granos: las series vienen ya sumadas; acá se elige el grano y se pinta)
+  // ===================================================================================
+  var errorTab = function (msg, que) { return '<div class="aviso" role="alert" id="cf-error"><b>No se pudo cargar.</b> ' + esc(msg) + " " + queHacer(msg) + ' <button type="button" class="btn btn-sm" data-reintentar="' + que + '" style="margin-left: 8px;">Reintentar</button></div>'; };
+  var cargandoHTML = function (id, txt) { return '<div class="esq" id="' + id + '"><p class="cargando">' + esc(txt) + '</p><div class="b" style="width:100%;height:120px"></div><div class="b" style="width:100%;height:200px"></div></div>'; };
+  var celdaMM = function (v, extra) { var cero = v === null || v === undefined || Math.abs(v) < 0.005; return '<span class="r num" style="' + (cero ? "color: #6B6F75;" : "") + (extra || "") + '">' + (cero ? "·" : fmt(v)) + "</span>"; };
+  function granos() {
+    var h = '<section aria-label="Granos" class="sec" style="gap: 28px;">';
+    h += '<div><h1 class="t1">Granos</h1><p class="lead">Stock, gastos comerciales y cosecha por grano y por mes. <b>Todo en millones de pesos (MM).</b> El stock está valuado en pesos como lo carga administración: toneladas × dólares por tonelada × tipo de cambio.</p>';
+    if (S.granosError) return h + "</div>" + errorTab(S.granosError, "granos") + "</section>";
+    var Gr = S.granos;
+    if (!Gr) return h + "</div>" + cargandoHTML("cf-gr-cargando", "Leyendo el stock, los gastos y la cosecha de la carga de hoy…") + "</section>";
+    h += '<p class="num" style="margin: 6px 0 0; font-size: 14px;"><b>Fecha que estás viendo:</b> Albor al cierre del ' + esc(labL(cargaDeBajada(Gr.foto))) + " (bajada del " + esc(lab(Gr.foto)) + (Gr.bajada && Gr.bajada.hora_ar ? ", " + esc(Gr.bajada.hora_ar) : "") + "). Cada mes es cuando entra o sale la plata; lo vencido antes de hoy va al mes en curso.</p></div>";
+    h += avisos(Gr.avisos);
+    if (!Gr.disponible) return h + "</section>";
+    var sel = S.grano, todos = sel === "Todos", incl = function (g) { return todos || g === sel; };
+    var B = Gr.por_grano[sel] || Gr.por_grano.Todos;
+    h += '<div class="ctrl"><div class="rot">Elegí un grano: mueve toda la pantalla</div><div role="group" aria-label="Grano" style="display: flex; gap: 8px; flex-wrap: wrap;" id="cf-gr-chips">' + ["Todos"].concat(Gr.granos).map(function (g) { return '<button type="button" class="btn btn-sm" aria-pressed="' + (sel === g) + '" data-grano="' + esc(g) + '">' + esc(g) + "</button>"; }).join("") + "</div></div>";
+    var T = B.totales;
+    h += '<div class="g4" id="cf-gr-cards">' + [["Stock", "valuado en pesos · rubro 04", T.stock], ["Gastos comerciales", T.flete16 !== null && Math.abs(T.flete16) >= 0.005 ? "rubro 09 + fletes del 16 (" + fmt(T.flete16) + ")" : "rubro 09", T.gcom], ["Cosecha", "lo que cuesta cosechar, en pesos · rubro 09", T.cosecha], ["Neto", "stock + gastos + cosecha (los gastos ya son negativos)", T.neto]].map(function (c) {
+      return '<div class="card card-col"><span class="rot">' + c[0] + '</span><span class="nota">' + esc(c[1]) + "</span>" + vMM(c[2], "k") + "</div>";
+    }).join("") + "</div>";
+    var n = Gr.meses.length, gc = "grid-template-columns: minmax(200px, 2fr) repeat(" + (n + 1) + ", minmax(72px, 1fr));";
+    h += '<div class="sec">' + secBtn("gmes", "Por mes", sel + " · millones de pesos (MM) · los fletes del 16 están dentro de gastos comerciales");
+    if (S.ab.gmes) {
+      var fila = function (t, arr, tot, fuerte, cls) { return '<div class="tr ' + (cls || "") + '" style="' + gc + '"><span class="fijo" style="font-weight: 600;">' + t + "</span>" + arr.map(function (v) { return celdaMM(v, fuerte ? "font-weight: 700;" : ""); }).join("") + '<span class="r num" style="font-weight: 700;">' + fmt(tot) + "</span></div>"; };
+      h += '<div class="tbl" id="cf-gr-tabla"><div class="scroll"><div class="num" style="min-width: ' + (200 + (n + 1) * 76) + 'px;"><div class="tr th" style="' + gc + '"><span class="fijo" style="background: #F4F1EA;">Concepto</span>' + Gr.meses.map(function (m) { return '<span class="r">' + mesCorto(m) + "</span>"; }).join("") + '<span class="r">Total</span></div>' +
+        fila("Stock (rubro 04)", B.stock, T.stock) + fila("Gastos comerciales (rubro 09 y fletes del 16)", B.gcom, T.gcom) + fila("Cosecha (rubro 09)", B.cosecha, T.cosecha) + fila("Neto", B.neto, T.neto, true, "tr-tot") + "</div></div>";
+      var notas = [];
+      if (T.flete16 !== null && Math.abs(T.flete16) >= 0.005) notas.push("Los gastos comerciales incluyen " + fmt(T.flete16) + " MM de fletes de cereales (rubro 16), que van por fuera del cash flow: no cuentan en el saldo.");
+      if (todos && T.flete16_sin_grano !== null && Math.abs(T.flete16_sin_grano) >= 0.005) notas.push("De esos fletes, " + fmt(T.flete16_sin_grano) + " MM no dicen el grano: solo aparecen en «Todos».");
+      h += notas.map(function (t) { return '<p class="nota cf-gr-nota" style="padding: 8px 16px;">' + esc(t) + "</p>"; }).join("") + "</div>";
+    }
+    h += "</div>";
+    var fichas = Gr.fichas.filter(function (x) { return incl(x.grano); }), nc = fichas.filter(function (x) { return !x.cuadra; }).length;
+    h += '<div class="sec">' + secBtn("gstock", "Stock renglón por renglón", fichas.length + (fichas.length === 1 ? " renglón" : " renglones") + (nc ? " · en " + nc + " la cuenta del texto no da el importe" : ""));
+    if (S.ab.gstock) {
+      h += fichas.length ? '<div class="tbl" id="cf-gr-fichas">' + fichas.map(function (x) {
+        return '<div class="tr num cf-gr-ficha' + (x.cuadra ? "" : " cf-gr-nocuadra") + '" style="grid-template-columns: 110px minmax(0, 1fr) auto;"><span><b style="font-weight: 700;">' + esc(x.grano) + '</b><br><span class="nota">' + esc(media(x.fecha)) + '</span></span><span style="white-space: normal;">' + esc(x.texto) + '<br><span class="nota">' + esc(x.cuadra ? x.tn + " toneladas × " + x.usd_tn + " USD por tonelada × tipo de cambio " + x.tc : "La cuenta del texto (tn × USD × TC) no da el importe cargado" + (x.dif_mm !== null ? ": difiere en " + fmt(Math.abs(x.dif_mm)) + " MM" : "") + ". Se muestra solo el importe.") + "</span></span>" + vMM(x.mm, "r") + "</div>";
+      }).join("") + "</div>" : '<p class="nota">Este grano no tiene stock cargado en la carga de hoy.</p>';
+    }
+    h += "</div>";
+    var det = Gr.detalle.filter(function (x) { return incl(x.grano); }), NOMC = { gcom: "Gasto comercial", cosecha: "Cosecha" };
+    h += '<div class="sec">' + secBtn("gdet", "Gastos y cosecha renglón por renglón", det.length + (det.length === 1 ? " renglón" : " renglones") + " del rubro 09");
+    if (S.ab.gdet) {
+      h += det.length ? '<div class="tbl" id="cf-gr-det">' + det.map(function (x) {
+        return '<div class="tr num" style="grid-template-columns: 110px minmax(0, 1fr) auto;"><span><b style="font-weight: 700;">' + esc(x.grano) + '</b><br><span class="nota">' + esc(media(x.fecha)) + '</span></span><span style="white-space: normal;">' + esc(x.texto) + '<br><span class="nota">' + esc(NOMC[x.concepto] || x.concepto) + '</span></span><span class="r" style="font-weight: 700;">' + fmt(x.mm) + "</span></div>";
+      }).join("") + "</div>" : '<p class="nota">Este grano no tiene gastos ni cosecha cargados en la carga de hoy.</p>';
+      if (Gr.no_leidos.length && todos) h += '<div class="tbl" id="cf-gr-noleidos"><div class="tbl-h"><div><h3>Renglones que no se pudieron leer (' + Gr.no_leidos.length + ")</h3><p>Empiezan como stock, gastos comerciales o cosecha, pero no se reconoce el grano. Quedan fuera y no se completan.</p></div></div>" + Gr.no_leidos.map(function (x) {
+        return '<div class="tr num" style="grid-template-columns: 110px minmax(0, 1fr) auto;"><span>' + esc(x.rubro.slice(0, 2)) + '<br><span class="nota">' + esc(media(x.fecha)) + '</span></span><span style="white-space: normal;">' + esc(x.texto) + '<br><span class="nota neg">' + esc(x.motivo) + '</span></span><span class="r" style="font-weight: 700;">' + fmt(x.mm) + "</span></div>";
+      }).join("") + "</div>";
+    }
+    h += "</div>";
+    var fl = Gr.fletes16.filter(function (x) { return incl(x.grano); });
+    h += '<div class="sec">' + secBtn("gfle", "Fletes del rubro 16", "No suman al saldo: el 16 va por fuera del cash flow");
+    if (S.ab.gfle) {
+      h += fl.length ? '<div class="tbl" id="cf-gr-fletes">' + fl.map(function (x) { return '<div class="tr num" style="grid-template-columns: minmax(0, 1fr) auto auto;"><span style="font-weight: 600;">' + esc(x.grano) + '</span><span class="nota">' + x.n + (x.n === 1 ? " renglón" : " renglones") + '</span><span class="r" style="font-weight: 700; min-width: 80px;">' + fmt(x.mm) + "</span></div>"; }).join("") + "</div>" +
+        '<p class="nota">«Sin grano»: el texto del flete no dice el grano. Solo se ve en «Todos». No se completa a mano.</p>' : '<p class="nota">Este grano no tiene fletes del 16 en la carga de hoy.</p>';
+    }
+    h += "</div>";
+    h += '<p class="nota num">Leído de la bajada del ' + esc(larga(Gr.foto)) + (Gr.bajada && Gr.bajada.hora_ar ? " (" + esc(Gr.bajada.hora_ar) + ")" : "") + ", " + Gr.n_renglones_leidos + " renglones de los rubros 04, 09 y 16. Lo que no está en Albor no se puede mostrar: toneladas de los gastos y de la cosecha, y el stock de días anteriores.</p>";
+    return h + "</section>";
+  }
+
+  // ===================================================================================
+  // FOTO ALBOR: contraste, rubro × mes (por rubro / por capa), control de la mañana, cambios en Albor
+  // ===================================================================================
+  function albor() {
+    var H = S.hoy, M = H.matriz, ch = cargaHoy();
+    var h = '<section aria-label="Foto Albor" class="sec" style="gap: 28px;">';
+    h += '<div><h1 class="t1">Foto Albor</h1><p class="lead">El control de la mañana y la planilla, con los datos de la carga del ' + esc(labL(ch)) + " (bajada del " + esc(lab(H.hoy)) + (H.bajada_hoy && H.bajada_hoy.hora_ar ? ", " + esc(H.bajada_hoy.hora_ar) : "") + ").</p></div>";
+    // Contraste con tu planilla (?vista=estado)
+    var E = S.estado, c = E ? E.contraste : null;
+    h += '<div class="imp" id="cf-contraste"><div class="imp-t">CONTRASTE CON TU PLANILLA</div>';
+    if (S.estadoError) h += '<p class="err">' + esc(S.estadoError) + "</p>";
+    else if (!E) h += '<p class="cargando">Leyendo el contraste del día…</p>';
+    else if (!c) h += "<p>No hay ningún contraste con la planilla de administración guardado.</p>";
+    else {
+      var v = String(c.veredicto || "").toUpperCase();
+      var celdas = c.celdas_revisar === null ? "s/d celdas a revisar" : c.celdas_revisar === 0 ? "ninguna celda a revisar" : c.celdas_revisar === 1 ? "1 celda a revisar" : c.celdas_revisar + " celdas a revisar";
+      h += '<p class="num">' + esc(corta(c.fecha)) + ": " + (v === "CIERRA" ? "coincide" : v === "CASI" ? "casi coincide" : v === "REVISAR" ? "hay algo para revisar" : v === "HORIZONTE" ? "difiere por el horizonte" : (v || "sin veredicto").toLowerCase()) + ". Diferencia de " + fmt(c.interior) + " MM sin contar bancos y " + celdas + ". Bancos da " + fmtS(c.bancos) + " distinto por la conciliación del día (bancos no se compara)." + (c.planilla_hora ? " Planilla " + esc(c.planilla_hora) + (c.bot_hora ? " · bot " + esc(c.bot_hora) : "") + "." : "") + (c.al_dia ? "" : " Es el último contraste guardado: el de hoy todavía no está.") + "</p>" + (c.nota ? '<p class="nota">' + esc(c.nota) + "</p>" : "");
+    }
+    h += "</div>";
+    // Rubro × mes
+    h += '<div class="sec">' + secBtn("rxm", "Rubro × mes", "Carga del " + corta(ch) + " · entra (+) y sale (−) en cada mes · " + nomMes(M.meses[0]) + " incluye el saldo de hoy");
+    if (S.ab.rxm) {
+      var capa = S.rxm === "capa", n = M.meses.length, gc = "grid-template-columns: minmax(200px, 1.8fr) repeat(" + n + ", minmax(76px, 1fr));";
+      h += '<div role="group" aria-label="Cómo agrupar" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;"><button type="button" class="btn btn-sm" aria-pressed="' + !capa + '" data-rxm="rubro">Ver por rubro</button><button type="button" class="btn btn-sm" aria-pressed="' + capa + '" data-rxm="capa">Ver por capa</button><span class="nota">Por capa: lo que tiene un tercero detrás (comprometido) separado de lo estimado por administración (presupuesto). Tocá una capa para ver sus rubros.</span></div>';
+      h += '<div class="tbl" id="cf-rxm"><div class="scroll"><div class="num" style="min-width: ' + (200 + n * 76) + 'px;"><div class="tr th" style="' + gc + '"><span class="fijo" style="background: #F4F1EA;">' + (capa ? "Capa" : "Rubro") + "</span>" + M.meses.map(function (m) { return '<span class="r">' + mesCorto(m) + "</span>"; }).join("") + "</div>";
+      if (!capa) {
+        M.grupos.forEach(function (g) { g.filas.forEach(function (f) { h += '<div class="tr" style="' + gc + '"><span class="fijo" style="font-weight: 600;">' + esc(f.rubro + " · " + f.etiqueta) + "</span>" + f.celdas.map(function (x) { return celdaMM(x); }).join("") + "</div>"; }); });
+      } else {
+        M.grupos.forEach(function (g) {
+          var sumas = M.meses.map(function (_, i) { return r2(g.filas.reduce(function (s, f) { return s + (f.celdas[i] || 0); }, 0)); });   // suma de celdas ya en MM (capa)
+          var puede = g.filas.length > 1, ab = puede && !!S.capaAb[g.tipo];
+          var cab = '<span class="fijo"><b style="font-weight: 700;"><span class="flecha">' + (puede ? (ab ? "▾" : "▸") : "") + "</span>" + esc(g.titulo.split(" · ")[0]) + '</b><br><span class="nota">' + esc(g.titulo.split(" · ").slice(1).join(" · ")) + "</span></span>";
+          h += (puede ? '<button type="button" class="tr tr-btn" aria-expanded="' + ab + '" data-capa="' + esc(g.tipo) + '" style="' + gc + '">' : '<div class="tr" style="' + gc + '">') + cab + sumas.map(function (x) { return celdaMM(x, "font-weight: 600;"); }).join("") + (puede ? "</button>" : "</div>");
+          if (ab) g.filas.forEach(function (f) { h += '<div class="tr tr-hijo" style="' + gc + '"><span class="fijo" style="background: #FAF8F3; padding-left: 40px;">' + esc(f.rubro + " · " + f.etiqueta) + "</span>" + f.celdas.map(function (x) { return celdaMM(x); }).join("") + "</div>"; });
+        });
+      }
+      h += '<div class="tr tr-tot" id="cf-rxm-neto" style="' + gc + '"><span class="fijo">Entra − sale en el mes</span>' + M.neto.map(function (x, i) { return i === 0 ? celdaMM(x, "font-weight: 700;") : '<span class="r num" style="font-weight: 700; color: ' + colD(x) + ';">' + FA2(x) + "</span>"; }).join("") + "</div>";
+      h += '<div class="tr" id="cf-rxm-acum" style="' + gc + ' font-weight: 700; background: #F4F1EA;"><span class="fijo" style="background: #F4F1EA;">Saldo a fin de mes</span>' + M.acumulado.map(function (x) { return '<span class="r num">' + fmt(x) + "</span>"; }).join("") + "</div>";
+      h += '<div class="tr" id="cf-rxm-acum2" style="' + gc + '"><span class="fijo">Acumulado mes a mes <span class="nota" style="display:block;">suma de «entra − sale» desde ' + esc(M.meses[1] ? nomMes(M.meses[1]) : "el mes siguiente") + ", sin el saldo de hoy</span></span>" + M.acumulado_desde_mes_siguiente.map(function (x, i) { return i === 0 ? '<span class="r viejo">—</span>' : '<span class="r num">' + FA2(x) + "</span>"; }).join("") + "</div>";
+      var lunes = S.parado, lv = M.meses.map(function (m) { var fm = S.pekin.cortes.filter(function (cc) { return cc.tipo === "fin de mes" && cc.fecha.slice(0, 7) === m; })[0]; return fm ? valPekin(lunes, fm.fecha) : null; });
+      h += '<div class="tr viejo" id="cf-rxm-lunes" style="' + gc + '"><span class="fijo">Saldo en la carga del ' + esc(lab(lunes)) + "</span>" + lv.map(function (x) { return '<span class="r num">' + fmt(x) + "</span>"; }).join("") + "</div>";
+      h += '<div class="tr" id="cf-rxm-cambio" style="' + gc + '"><span class="fijo">Cambió contra la carga del ' + esc(corta(lunes)) + "</span>" + lv.map(function (x, i) { return '<span class="r">' + chip(dif(M.acumulado[i], x)) + "</span>"; }).join("") + "</div>";
+      h += "</div></div></div>";
+    }
+    h += "</div>";
+    // Control de la mañana
+    var C = S.control;
+    h += '<div class="sec">' + secBtn("ctrl", "Control de la mañana", "Lo que tiene fecha anterior a hoy y no debería: ventas, facturas de compras y adicionales");
+    if (S.ab.ctrl) {
+      if (S.controlError) h += errorTab(S.controlError, "control");
+      else if (!C) h += '<p class="cargando">Leyendo el control de la mañana…</p>';
+      else {
+        h += avisos(C.avisos);
+        if (C.disponible) {
+          h += '<div class="g3" id="cf-control">' + [["ventas", C.ventas, "Rubro 02 y anticipos."], ["compras", C.compras, "Rubro 05 y anticipos."], ["adicionales", C.adicionales, "Rubros 12, 16 (fletes) y 17. No entran en el cash flow."]].map(function (g) {
+            var x = g[1], kk = "ctrl|" + g[0], cant = Math.min(x.items.length, Math.max(P_RUB, S.abN[kk] || P_RUB));
+            var sub = g[0] === "adicionales" ? x.por_rubro.map(function (r) { return r.rubro + ": " + r.n + " · " + fmt(r.total); }).join(" / ") : "";
+            return '<div class="tbl" id="cf-ctrl-' + g[0] + '"><div class="tbl-h"><div><h3>' + esc(x.titulo) + '</h3><p class="num">' + x.n + " comprobantes · " + FA(x.total) + " MM" + (sub ? " · " + esc(sub) : "") + "</p></div></div>" +
+              x.items.slice(0, cant).map(function (i) { return '<div class="tr num" style="grid-template-columns: minmax(0, 1fr) auto; font-size: 13px;"><span style="white-space: normal;"><b style="font-weight: 600;">' + esc(i.descripcion) + '</b><br><span class="nota">' + esc(media(i.fecha) + (i.referente ? " · " + i.referente : "") + (g[0] === "adicionales" ? " · rubro " + i.rubro : "")) + '</span></span><span class="r" style="font-weight: 700; color: ' + colD(i.mm) + ';">' + FA(i.mm) + "</span></div>"; }).join("") +
+              (x.items.length > cant || cant > P_RUB ? '<div class="masbar" style="padding: 4px 16px;">' + (x.items.length > cant ? '<button type="button" class="mas" data-mas="' + kk + '" data-d="1" data-n="' + P_RUB + '">Ver ' + Math.min(PASO, x.items.length - cant) + " más · quedan " + (x.items.length - cant) + "</button>" : "") + (cant > P_RUB ? '<button type="button" class="mas" data-mas="' + kk + '" data-d="-1" data-n="' + P_RUB + '">Ver menos</button>' : "") + "</div>" : "") +
+              '<p class="nota" style="padding: 8px 16px; border-top: 1px solid #E3DDD1;">' + esc(g[2]) + " Descripción y referente tal cual Albor.</p></div>";
+          }).join("") + "</div>";
+          h += '<p class="nota">Criterio de Giorgi: los cobros vencidos se traen a hoy y los pagos se corren al viernes. «Comp. a Pagar ANTERIORES» es el arrastre que pone Albor. La lista sale completa y se actualiza cada mañana.</p>';
+        }
+      }
+    }
+    h += "</div>";
+    // Cambios en Albor (lo de la web anterior que no está en el Pekín): lunes a lunes y los 3 que más mejoran / empeoran.
+    var kP = bajadaDe(S.parado), rL = cacheD[claveD(kP, H.hoy, H.fecha_fija)], dL = rL && rL.data ? rL.data : null;
+    h += '<div class="sec">' + secBtn("cambios", "Cambios en Albor", "Contra la carga del " + corta(S.parado) + ", mirando al " + corta(H.fecha_fija) + " ★: los 3 rubros que más mejoran y empeoran, y lunes a lunes");
+    if (S.ab.cambios) {
+      if (rL && rL.error) h += '<p class="err">' + esc(rL.error) + "</p>";
+      else if (!dL) h += '<p class="cargando">Calculando…</p>';
+      else {
+        var con = dL.rubros.filter(function (x) { return x.cambio !== null; });
+        var suben = con.filter(function (x) { return x.cambio > 0; }).sort(function (p, q) { return q.cambio - p.cambio; }).slice(0, 3), bajan = con.filter(function (x) { return x.cambio < 0; }).sort(function (p, q) { return p.cambio - q.cambio; }).slice(0, 3);
+        var top = function (t, lista, cls) { return '<div class="card card-col" style="gap: 8px;"><div style="font-size: 13px; font-weight: 600;">' + esc(t) + "</div>" + (lista.length ? lista.map(function (x) { return '<div class="num" style="display: flex; justify-content: space-between; gap: 12px; font-size: 15px;"><span>' + esc(x.rubro + " · " + x.etiqueta) + '</span><span class="' + cls + '" style="font-weight: 600;">' + FA(x.cambio) + "</span></div>"; }).join("") : '<span class="nota">' + (dL.misma_bajada ? "Es la misma carga: no hay cambios." : "Ninguno.") + "</span>") + "</div>"; };
+        h += '<div class="g2" id="cf-top3">' + top("Los 3 rubros que más mejoran", suben, "pos") + top("Los 3 rubros que más empeoran", bajan, "neg") + "</div>";
+        var gl = "grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(0, 1fr));";
+        h += '<div class="tbl" id="cf-lunes"><div class="tbl-h"><div><h3>Lunes a lunes, mirando al ' + esc(corta(H.fecha_fija)) + '</h3><p>Qué saldo daba esa fecha, parado cada lunes (la carga del domingo). Antes del ' + esc(corta(S.pekin.bancos_desde)) + ' no hay total (esas bajadas no traían bancos).</p></div></div><div class="scroll"><div style="min-width: 340px;"><div class="tr th num" style="' + gl + '"><span>Parado el</span><span class="r">Saldo al ' + esc(corta(H.fecha_fija)) + '</span><span class="r">Cambio vs. lunes anterior</span></div>' +
+          dL.lunes.map(function (l) { return '<div class="tr num' + (l.es_hoy ? " tr-sel" : "") + '" style="' + gl + '"><span style="font-weight: 500;">' + (l.es_hoy ? "Hoy · " : "") + esc(labM(cargaDeBajada(l.fecha))) + '</span><span class="r" style="font-weight: 600;">' + fmt(l.total) + '</span><span class="r">' + chip(l.cambio_vs_anterior) + "</span></div>"; }).join("") + "</div></div></div>";
+      }
+    }
+    h += "</div>";
+    h += '<div class="card" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;"><span>Para comparar con el cuadro Pekín en papel: cada columna del cuadro digital es la carga de ese día.</span><button type="button" class="btn" data-p="pekin">Ir al Cuadro Pekín →</button></div>';
+    return h + "</section>";
+  }
+
+  // ===================================================================================
+  // DATO CRUDO
+  // ===================================================================================
+  var crudoCarga = function () { var c = S.crudoCarga || S.parado; var cp = cargaPara(c); return c < primeraCarga() ? primeraCarga() : (c > cargaHoy() ? cargaHoy() : c); };
+  function crudo() {
+    var H = S.hoy, ch = cargaHoy(), carga = crudoCarga();
+    var rc = cacheCrudo[carga], cr = rc && rc.data ? rc.data : null;
+    var h = '<section aria-label="Dato crudo" class="sec" style="gap: 28px;">';
+    h += '<div><h1 class="t1">Dato crudo</h1><p class="lead">El Excel tal como el bot lo bajó de Albor, sin tocar. Para ir a la fuente cuando un número genera dudas.</p></div>';
+    h += '<div class="ctrl"><div class="ctrl-f"><div class="campo"><label for="cf-crudo">Carga del <span>· el día de Albor que querés ver, del ' + esc(corta(PRIMERA_CARGA)) + ' a hoy</span></label><input id="cf-crudo" class="inp" type="date" value="' + esc(carga) + '" min="' + esc(PRIMERA_CARGA) + '" max="' + esc(ch) + '" data-set="crudoCarga"></div>' +
+      (cr ? '<p class="num" style="padding-bottom: 10px;">Albor al cierre del <b>' + esc(labL(cr.carga)) + "</b> · el bot lo bajó el " + esc(lab(cr.bajada.fecha)) + " a las " + esc(cr.bajada.hora_ar || "?") + "</p>" : "") + "</div>" +
+      (rc && rc.error ? '<p class="err" role="alert">' + esc(rc.error) + "</p>" : "") + (cr ? avisos(cr.avisos) : "") +
+      (cr && cr.de_dia ? '<p class="aviso">Antes del ' + esc(corta(S.pekin.bancos_desde)) + " el bot bajaba de día: este archivo es Albor como estaba a esa hora, no al cierre.</p>" : "") +
+      (cr && cr.excluida ? '<p class="aviso">Esta bajada quedó fuera de los números de la web (' + esc(cr.excluida) + "); el archivo se muestra igual.</p>" : "") +
+      '<span class="nota">Arranca en el día que tengas en «Parado el». También se llega desde cada columna del Cuadro Pekín («Dato crudo ↗»).</span></div>';
+    h += '<div class="sec">' + secBtn("carch", "Archivos de esa carga", "Los originales, guardados en la base desde el " + corta(PRIMERA_CARGA));
+    if (S.ab.carch) {
+      if (!cr) h += rc && rc.error ? "" : '<p class="cargando">Buscando los archivos…</p>';
+      else {
+        var kb = function (b) { return b === null || b === undefined ? "s/d" : miles(Math.round(b / 1000)) + " KB"; };
+        h += '<div class="g2" id="cf-crudo-arch">' + cr.archivos.map(function (a) {
+          var t = a.id === "A" ? ["Bajada A · detalle del cash flow", "Todos los rubros y comprobantes, como los arma Albor. De acá salen todos los números de la web."] : ["Bajada B · como la arma Giorgi", "La misma bajada con los filtros de administración. De acá sale el saldo de bancos."];
+          var on = S.crudoVer === a.id;
+          return '<div class="card card-col" style="gap: 8px;"><span class="rot">' + t[0] + "</span><span>" + t[1] + "</span>" +
+            (a.existe ? '<span class="num" style="font-weight: 700; word-break: break-all;">' + esc(a.archivo || "(sin nombre)") + '</span><span class="nota num">' + miles(a.n_filas) + " filas · " + kb(a.bytes) + " · bajada a las " + esc(cr.bajada.hora_ar || "?") + "</span>" +
+              '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;"><button type="button" class="btn" aria-pressed="' + on + '" data-crudo-ver="' + a.id + '">' + (on ? "Cerrar" : "Ver acá") + '</button><button type="button" class="btn" disabled aria-disabled="true">Abrir en Excel</button></div>' +
+              '<span class="nota">«Abrir en Excel» se activa con el login de Microsoft: ' + esc(cr.descarga.motivo.replace(/^Se activa con el login de Microsoft: /, "")) + "</span>"
+              : '<span class="nota">No existe para esta fecha: la bajada B empezó el ' + esc(corta(S.pekin.bancos_desde)) + ".</span>") + "</div>";
+        }).join("") + "</div>";
+        if (S.crudoVer) h += crudoFilasHTML(cr);
+      }
+    }
+    h += "</div>";
+    // Qué columnas trae (del encabezado del archivo, vía crudo_filas)
+    h += '<div class="sec">' + secBtn("ccols", "Qué columnas trae", "Las columnas del Excel de Albor, del encabezado del archivo");
+    if (S.ab.ccols) {
+      var rf = cacheCF[claveCF(cr ? cr.carga : carga, S.crudoVer || "A", S.crudoVer ? S.crudoQ : "", S.crudoVer ? S.crudoPag : 1)], f = rf && rf.data ? rf.data : null;
+      if (rf && rf.error) h += '<p class="err">' + esc(rf.error) + "</p>";
+      else if (!f) h += '<p class="cargando">Leyendo el encabezado del archivo…</p>';
+      else if (!f.disponible) h += avisos(f.avisos);
+      else h += '<div id="cf-crudo-cols" style="display: flex; gap: 8px; flex-wrap: wrap;">' + f.columnas_todas.map(function (c) { return '<span class="chip ' + (c.oculta ? "chip-rev" : "chip-0") + '">' + esc(c.nombre) + "</span>"; }).join("") + '</div><p class="nota">En trigo: las columnas que la web no muestra (' + esc(f.columnas_todas.filter(function (c) { return c.oculta; }).map(function (c) { return c.nombre; }).join(", ")) + "). El CBU es de terceros: por eso la descarga va con login.</p>";
+    }
+    h += "</div>";
+    return h + "</section>";
+  }
+  function crudoFilasHTML(cr) {
+    var key = claveCF(cr.carga, S.crudoVer, S.crudoQ, S.crudoPag), rf = cacheCF[key], f = rf && rf.data ? rf.data : null;
+    var h = '<div id="cf-crudo-ver" class="tbl" style="border: 2px solid #2F3437; scroll-margin-top: 72px;"><div class="tbl-h"><div><span class="rot">Ver acá</span><h3 class="num">Bajada ' + esc(S.crudoVer) + " · " + esc(lab(cr.bajada.fecha)) + " " + esc(cr.bajada.hora_ar || "") + "</h3><p>" + (f && f.disponible ? miles(f.n_total) + " filas y " + f.columnas.length + " columnas (sin CBU ni cuentas), de a " + f.por_pagina + ". Buscador por texto." : "Leído del archivo mismo, del lado del servidor.") + "</p></div>" +
+      '<form data-crudo-q="1" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;"><input id="cf-crudo-q" class="inp" type="search" value="' + esc(S.crudoQ) + '" placeholder="Buscar texto…" aria-label="Buscar en el archivo" style="min-width: 200px;"><button type="submit" class="btn">Buscar</button>' + (S.crudoQ ? '<button type="button" class="btn" data-crudo-q-limpiar="1">✕ Limpiar</button>' : "") + "</form></div>";
+    if (rf && rf.error) h += '<p class="err" role="alert" style="padding: 12px 16px;">' + esc(rf.error) + "</p>";
+    else if (!f) h += '<p class="cargando" style="padding: 12px 16px;">Leyendo el archivo…</p>';
+    else {
+      h += '<div style="padding: 0 16px;">' + avisos(f.avisos) + "</div>";
+      if (f.disponible) {
+        var pag = '<div class="pag"><span class="num">' + (f.n_filtradas ? "Filas " + miles(f.desde) + "–" + miles(f.hasta) + " de " + miles(f.n_filtradas) + (f.q ? " que dicen «" + esc(f.q) + "»" : "") : "Ninguna fila" + (f.q ? " dice «" + esc(f.q) + "»" : "")) + "</span>" +
+          '<button type="button" class="btn btn-sm" data-crudo-pag="' + (f.pagina - 1) + '"' + (f.pagina <= 1 ? " disabled" : "") + '>← Anterior</button><span class="num">página ' + f.pagina + " de " + Math.max(f.n_paginas, 1) + '</span><button type="button" class="btn btn-sm" data-crudo-pag="' + (f.pagina + 1) + '"' + (f.pagina >= f.n_paginas ? " disabled" : "") + ">Siguiente →</button></div>";
+        h += pag;
+        var iImp = f.columnas.indexOf("Importe");
+        h += '<div class="scroll"><table class="cr-tabla" id="cf-crudo-tabla"><thead><tr>' + f.columnas.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+          f.filas.map(function (r) { return "<tr>" + r.map(function (v, i) { var num = typeof v === "number"; return '<td class="' + (num ? "n num" : "") + '" title="' + esc(v === null ? "" : v) + '">' + (v === null ? "" : (num ? (i === iImp ? miles(Math.round(v)) : String(v)) : esc(v))) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>";
+        h += pag;
+        h += '<p class="nota" style="padding: 10px 16px; border-top: 1px solid #E3DDD1;">Los importes van en pesos, como en el Excel. Lo que no se muestra: ' + esc(f.columnas_todas.filter(function (c) { return c.oculta; }).map(function (c) { return c.nombre; }).join(", ")) + "; el referente de bancos va con la cuenta enmascarada.</p>";
+      }
+    }
+    return h + "</div>";
+  }
+
+  // ===================================================================================
+  // ESTADO DE LA WEB
+  // ===================================================================================
+  function estado() {
+    var h = '<section aria-label="Estado de la web" class="sec" style="gap: 28px;"><div><h1 class="t1">Estado de la web</h1><p class="lead">¿El número de hoy está bien? Tres controles automáticos de cada mañana.</p></div>';
+    if (S.estadoError) return h + errorTab(S.estadoError, "estado") + "</section>";
+    var E = S.estado;
+    if (!E) return h + cargandoHTML("cf-est-cargando", "Leyendo los controles de la mañana…") + "</section>";
+    if (!E.es_hoy_real) h += '<p class="aviso">Estado al ' + esc(larga(E.hoy)) + " (día congelado por el link).</p>";
+    var card = function (id, est, titulo, cuerpo) { return '<div class="card card-col" id="' + id + '" style="gap: 8px;"><div style="display: flex; align-items: center; gap: 8px;"><span class="dot ' + esc(est) + '"></span><span style="font-weight: 600;">' + esc(titulo) + "</span></div>" + cuerpo + "</div>"; };
+    var c = E.contraste, t1, b1;
+    if (!c) { t1 = "Sin contraste todavía"; b1 = "<p>No hay ningún contraste con la planilla de administración guardado.</p>"; }
+    else {
+      var v = String(c.veredicto || "").toUpperCase();
+      t1 = v === "CIERRA" ? "Coincide con administración" : (c.estado === "revisar" ? "Hay algo para revisar (" + v.toLowerCase() + ")" : "No coincide con administración (" + (v || "sin veredicto").toLowerCase() + ")");
+      var celdas = c.celdas_revisar === null ? "s/d celdas a revisar" : c.celdas_revisar === 0 ? "ninguna celda a revisar" : c.celdas_revisar === 1 ? "1 celda a revisar" : c.celdas_revisar + " celdas a revisar";
+      b1 = '<p class="num" style="font-size: 14px;">Contra la planilla de Giorgi (' + esc(corta(c.fecha)) + (c.planilla_hora ? ", " + esc(c.planilla_hora) : "") + "): diferencia " + fmt(c.interior) + " MM sin contar bancos, " + celdas + ". Bancos da " + fmtS(c.bancos) + " distinto por la conciliación del día; bancos no se compara." + (c.al_dia ? "" : " Es el último contraste guardado: el de hoy todavía no está.") + "</p>" + (c.nota ? '<details class="plain"><summary>Nota del contraste</summary><p style="margin-top: 6px;">' + esc(c.nota) + "</p></details>" : "");
+    }
+    var I = E.integridad, q = I.chequeo, t2, b2;
+    if (!q) { t2 = "Los datos guardados no se controlaron"; b2 = '<p class="num" style="font-size: 14px;">Desde el ' + esc(corta(I.primera || "")) + " se guardaron los datos de " + I.fotos + " días. No hay ningún chequeo del registro guardado.</p>"; }
+    else if (I.sin_modificar && q.color !== "ROJO") { t2 = "Los datos guardados están bien"; b2 = '<p class="num" style="font-size: 14px;">Desde el ' + esc(corta(I.primera)) + " se guardaron los datos de " + I.fotos + " días; ninguno se modificó después. " + (q.es_de_hoy ? "La de hoy se controló a las " + esc(q.hora) + "." : "El último control es del " + esc(corta(q.fecha)) + " a las " + esc(q.hora) + ".") + (q.color === "AMBAR" ? " El chequeo quedó en ámbar: " + esc(q.resumen) : "") + "</p>"; }
+    else { t2 = "Hay que revisar los datos guardados"; b2 = '<p class="num" style="font-size: 14px;">El control del ' + esc(corta(q.fecha)) + " a las " + esc(q.hora) + " no cerró: " + (q.hash_mal ? q.hash_mal + " foto(s) con el hash cambiado. " : "") + (q.regresion_dif ? q.regresion_dif + " diferencia(s) al recalcular las últimas fotos. " : "") + (q.referencia_dif ? q.referencia_dif + " diferencia(s) contra la foto de referencia. " : "") + "Detalle: " + esc(q.resumen) + "</p>"; }
+    var N = E.incidentes;
+    var b3 = N.abiertos.length ? '<ul class="ul">' + N.abiertos.map(function (i) { return "<li>" + esc(i.sintoma) + ' <span class="num nota">(' + esc(String(i.severidad).toLowerCase()) + ", " + esc(corta(i.abierto || i.fecha)) + (i.abierto_hora ? " " + esc(i.abierto_hora) : "") + (i.veces > 1 ? ", visto " + i.veces + " veces" : "") + ")</span></li>"; }).join("") + "</ul>" : "<p>Ningún incidente abierto.</p>";
+    if (N.abiertos.length && c && String(c.veredicto || "").toUpperCase() === "CIERRA" && !N.alarmas) b3 += '<p class="nota">Igual coincide con administración.</p>';
+    h += '<div class="g3" id="cf-est-checks">' + card("cf-est-contraste", c ? c.estado : "sin_dato", "1 · " + t1, b1) + card("cf-est-integridad", I.estado, "2 · " + t2, b2) + card("cf-est-incidentes", N.estado, "3 · " + N.titulo, b3) + "</div>";
+    h += '<div class="sec">' + secBtn("ebit", "Últimos 10 días hábiles", "Contraste de cada mañana con la planilla de Giorgi · en millones");
+    if (S.ab.ebit) {
+      h += '<div class="card" id="cf-est-bitacora" style="display: flex; flex-direction: column; gap: 10px;"><div class="bit">' + E.bitacora.map(function (b) { return '<div class="' + esc(b.estado) + '" title="' + esc(b.nota || "") + '"><div style="font-size: 12px;">' + esc(corta(b.fecha)) + '</div><div style="font-size: 13px; font-weight: 600;">' + esc(b.texto) + "</div></div>"; }).join("") + "</div>";
+      var raros = E.bitacora.filter(function (b) { return b.estado !== "ok"; });
+      h += raros.length ? raros.map(function (b) { return '<details class="plain"><summary>' + esc(corta(b.fecha) + ": " + b.texto) + (b.interior !== null ? " · diferencia sin bancos " + fmtS(b.interior) + " MM" : "") + (b.celdas_revisar ? " · " + b.celdas_revisar + " celdas a revisar" : "") + '</summary><p style="margin-top: 6px;">' + esc(b.nota || "Sin nota.") + "</p></details>"; }).join("") : '<p class="nota">Los diez días coinciden con administración.</p>';
+      h += '<p class="nota">Coincide = diferencia de menos de ' + E.umbrales.cierra_mm + " MM sin contar bancos. Bancos se mueve por la conciliación de la mañana: es normal hasta ±" + E.umbrales.bancos_normal_mm + " MM.</p></div>";
+    }
+    h += "</div>";
+    h += '<div class="sec">' + secBtn("saltos", "Saltos grandes del total", "Cargas en que el saldo al horizonte se movió más de " + miles(SALTO_GRANDE) + " MM de un día para el otro");
+    if (S.ab.saltos) {
+      if (S.diasError) h += '<p class="nota">' + esc(S.diasError) + "</p>";
+      else if (!S.dias) h += '<p class="cargando">Leyendo los últimos días…</p>';
+      else {
+        var saltos = S.dias.dias.filter(function (x) { return Math.abs(x.total_mm) >= SALTO_GRANDE; });
+        h += '<div class="card" id="cf-est-saltos" style="display: flex; flex-direction: column; gap: 4px;"><p class="nota">De las últimas ' + S.dias.dias.length + " cargas, los saltos de más de " + miles(SALTO_GRANDE) + " MM. Cada uno enlaza a su explicación por motivo en el Cuadro Pekín.</p>" +
+          (saltos.length ? saltos.map(function (x) { return '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-top: 1px dashed #E3DDD1;"><span class="num" style="font-size: 14px;">Carga del ' + esc(corta(cargaDeBajada(x.fecha))) + ' · el total se movió <b style="color: ' + colD(x.total_mm) + ';">' + FA(x.total_mm) + '</b></span><button type="button" class="btn btn-sm" data-ir-par="1" data-ant="' + esc(cargaDeBajada(x.anterior)) + '" data-dia="' + esc(cargaDeBajada(x.fecha)) + '">Ver por qué</button></div>'; }).join("") : '<p style="font-size: 14px;">Ningún salto grande en esos días.</p>') + "</div>";
+      }
+    }
+    h += "</div>";
+    h += '<div class="card card-col" style="gap: 8px;"><span class="rot">Cómo se arma el número</span><ul class="ul"><li>Se lee desde hoy, igual que administración: lo vencido y no resuelto se suma al mes en curso.</li><li>Bancos es el saldo conciliado del día: no tiene comprobante detrás y no se usa para comparar.</li><li>No entran los rubros ' + esc(E.rubros_fuera.slice(0, -1).join(", ") + " y " + E.rubros_fuera.slice(-1)) + ": van por fuera del cash flow (los fletes del 16 se ven en Granos).</li><li>Hasta qué fecha se proyecta lo decide administración; la web la sigue sola.</li><li>Los datos de un día ya guardado no cambian nunca: si cambiaran, algo nuestro se rompió y salta la alarma.</li></ul></div>";
+    return h + "</section>";
+  }
+
+  // ===================================================================================
+  // NOTAS (pantalla)
+  // ===================================================================================
+  function notas() {
+    var ch = cargaHoy();
+    var h = '<section aria-label="Notas" class="sec" style="gap: 20px;"><div><h1 class="t1">Notas</h1><p class="lead">Lo que querés dejar escrito: general o sobre un día de carga. Las de un día también aparecen en el Cuadro Pekín. Por ahora quedan solo en este aparato; las compartidas, con el nombre de quien escribe, vienen con el login de Microsoft.</p></div>';
+    h += '<div class="nt-pag"><div class="nt-tapa"><span>Notas</span><label>Día de carga <input type="date" class="nt-cal-xl" aria-label="Día de carga de las notas" value="' + esc(S.notaDia || "") + '" min="' + esc(PRIMERA_CARGA) + '" max="' + esc(ch) + '" data-set="notaDia"></label></div>' +
+      '<div class="lat-notas-hoja">' + notasHTML("cf-notas-lista-xl", "cf-nota-xl", S.notaDia, true) + "</div></div>";
+    return h + "</section>";
+  }
+
+  // ===================================================================================
+  // MARCO: columna lateral, barra de arriba, barra de abajo (celular), ayuda, render
+  // ===================================================================================
+  var ICONO_NOTAS = '<svg class="lat-notas-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="#FBF1C7"/><path d="M2.5 7.5V7.5a5 5 0 0 1 5-5h9a5 5 0 0 1 5 5v0z" fill="#6E5443"/><rect x="2.5" y="7" width="19" height="1.2" fill="#4E3B2F"/><g stroke="#C9B98A" stroke-width="0.9"><line x1="3" y1="11.5" x2="21" y2="11.5"/><line x1="3" y1="14.5" x2="21" y2="14.5"/><line x1="3" y1="17.5" x2="21" y2="17.5"/></g><line x1="7" y1="8.2" x2="7" y2="21" stroke="#D98C7A" stroke-width="1"/></svg>';
+  var selloTxt = function () {
+    if (!S.hoy) return "Cargando la carga de hoy…";
+    var ch = cargaHoy(), H = S.hoy;
+    return "Albor al cierre del " + lab(ch) + " · bajada " + corta(H.hoy) + (H.bajada_hoy && H.bajada_hoy.hora_ar ? " a las " + H.bajada_hoy.hora_ar : "");
+  };
+  function lateral() {
+    var ab = S.latAb;
+    var h = '<nav class="lat' + (ab ? "" : " lat-cerrada") + '" aria-label="Secciones"><div class="lat-cab"><button type="button" class="lat-trebol-btn" aria-expanded="' + ab + '" aria-label="' + (ab ? "Cerrar la columna" : "Abrir la columna") + '" title="' + (ab ? "Cerrar la columna" : "Abrir la columna") + '" data-lat="1"><img class="lat-trebol" src="trebol_blanco.svg" alt="Trébol de Lacau"></button><div class="lat-marca">LACAU · CASH FLOW</div></div>';
+    h += '<div class="lat-cuerpo"><div class="lat-emp">Equipo de finanzas</div>';
+    PANT.filter(function (p) { return p[0] !== "notas"; }).forEach(function (p) {
+      var cur = S.p === p[0];
+      h += '<button type="button" class="lat-btn" aria-current="' + (cur ? "page" : "false") + '" data-p="' + p[0] + '"' + (cur ? ' data-sub="1"' : "") + ">" + p[1] + "</button>";
+      if (cur && !S.subOcultas) (SEC[p[0]] || []).forEach(function (s) { h += '<button type="button" class="lat-btn lat-sub' + (S.ab[s[0]] ? " lat-sub-on" : "") + '" data-abrir="' + s[0] + '">' + s[1] + "</button>"; });
+    });
+    h += '<section class="lat-notas" aria-label="Notas"><div class="lat-notas-tapa"><button type="button" class="lat-notas-t" aria-expanded="' + S.notasAb + '" data-notas-ab="1">' + ICONO_NOTAS + '<span>Notas</span><i class="lat-notas-fl" aria-hidden="true">' + (S.notasAb ? "▾" : "▸") + "</i></button>" +
+      (S.notasAb ? '<input type="date" class="lat-cal" aria-label="Día de carga de las notas" title="Elegí un día de carga; vacío = todas" value="' + esc(S.notaDia || "") + '" min="' + esc(PRIMERA_CARGA) + '" max="' + esc(S.hoy ? cargaHoy() : "") + '" data-set="notaDia">' : "") + "</div>";
+    if (S.notasAb) h += '<div class="lat-notas-hoja">' + notasHTML("cf-notas-lista", "cf-nota", S.notaDia, false) + "</div>";
+    h += "</section>";
+    h += '<div class="lat-pie num">' + esc(selloTxt()) + ".<br>En millones de pesos (MM).</div></div></nav>";
+    return h;
+  }
+  function tabbar() {
+    var MAS = [["granos", "Granos"], ["albor", "Foto Albor"], ["crudo", "Dato crudo"], ["estado", "Estado de la web"]];
+    var enMas = MAS.some(function (m) { return m[0] === S.p; });
+    var h = S.masAb ? '<div class="tab-mas" role="menu">' + MAS.map(function (m) { return '<button type="button" class="tab-mas-btn" role="menuitem" aria-current="' + (S.p === m[0] ? "page" : "false") + '" data-p="' + m[0] + '">' + m[1] + "</button>"; }).join("") + "</div>" : "";
+    h += '<nav class="tabbar" aria-label="Secciones">' + [["inicio", "Inicio"], ["proy", "Saldo"], ["pekin", "Pekín"], ["notas", "Notas"]].map(function (t) { return '<button type="button" class="tab" aria-current="' + (S.p === t[0] ? "page" : "false") + '" data-p="' + t[0] + '">' + t[1] + "</button>"; }).join("") +
+      '<button type="button" class="tab" aria-current="' + (enMas ? "page" : "false") + '" aria-expanded="' + S.masAb + '" data-mas="1">Más</button></nav>';
+    return h;
+  }
+  function selloHTML() {
+    var s = S.sello, cls = "", t = selloTxt();
+    if (s && !s.error && s.fecha) { var v = String(s.veredicto || "").toUpperCase(); cls = v === "CIERRA" ? "cierra" : (v === "REVISAR" || v === "CASI" || v === "HORIZONTE") ? "mirar" : "falla"; }
+    return '<button type="button" class="sello num" id="cf-sello" data-p="estado" title="' + esc(s && !s.error && s.fecha ? "Contraste con administración del " + corta(s.fecha) + ": " + String(s.veredicto || "").toLowerCase() : "") + '"><i></i>' + esc(t) + "</button>";
+  }
+  var AYUDA = {
+    inicio: "<p>Lo más importante de hoy en una línea y cinco tarjetas: cuánto hay hoy, cuánto da el próximo día 10, el fin de mes, la fecha fija (★) y el peor día hasta ahí. Cada tarjeta dice también qué daba esa fecha en la carga con la que comparás y cuánto cambió. Tocá una para verla en Saldo proyectado.</p>",
+    proy: "<p>Cuánta plata va a haber en cada fecha si se cumple todo lo cargado en Albor: lo que hay hoy (bancos + vencidos) + lo que entra − lo que sale hasta ese día. Negativo = faltaría plata.</p><p>«Parado el» es la carga con la que comparás (por defecto, la del lunes anterior); «Mirando al» es la fecha que querés ver. Las tiras y las fechas clave cambian «Mirando al». Vencimientos grandes: los pagos de deuda o Fondo de más de 300 MM en un solo renglón. Día por día: tocá un día para ver sus comprobantes. Por rubro: qué rubro explica la diferencia; tocá uno para abrir sus comprobantes.</p>",
+    pekin: "<p>Cada columna es un día en que se miró Albor (la carga de ese día); cada fila, lo que daba una fecha ese día. Marcá dos columnas («Comparar») y tocá «Ver» en una fila para ver qué cambió entre esas dos cargas, por rubro y por comprobante.</p><p>«Por motivo»: cuando comparás una carga contra la del día anterior, los mismos cambios agrupados por qué los movió, siempre al fin del horizonte. «A revisar» marca lo que conviene preguntar a administración. Los botones «De un día para el otro» son el atajo.</p>",
+    granos: "<p>Por grano y por mes: stock a vender, gastos comerciales (con fletes) y costo de cosecha. Solo lo que está en Albor; lo que falta o no cuadra no se completa. Los fletes del rubro 16 no suman en el saldo. Girasol AO (alto oleico) va aparte del girasol común.</p>",
+    albor: "<p>Lo que mira administración cada mañana: si la planilla coincide, la matriz rubro × mes (por rubro o por capa: comprometido = hay un documento con un tercero; presupuesto = lo carga finanzas por fórmula), el control de la mañana (lo que tiene fecha pasada y no debería) y los cambios contra la carga del lunes.</p>",
+    crudo: "<p>El Excel tal como el bot lo bajó de Albor. Elegí la carga, y «Ver acá» para recorrer las filas con el buscador. No se muestran el CBU ni los números de cuenta; «Abrir en Excel» se activa con el login de Microsoft.</p>",
+    estado: "<p>Controles automáticos de cada mañana: si coincide con administración, si los datos guardados están bien y si hay alarmas. Abajo, los últimos 10 días hábiles y los saltos grandes del total con su explicación.</p>",
+    notas: "<p>Notas generales o sobre un día de carga. Por ahora quedan solo en este aparato (no se comparten ni se firman); con el login de Microsoft pasan a ser compartidas, con el nombre de quien las escribió.</p>"
+  };
+  function ayuda() {
+    if (!S.help) return "";
+    return '<div class="help"><div role="dialog" aria-modal="true" aria-labelledby="cf-help-t"><div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;"><h2 id="cf-help-t">¿Cómo se lee?</h2><button type="button" class="btn btn-sm" data-help="0">Cerrar</button></div>' +
+      '<p class="nota">' + esc(TIT[S.p]) + '. Todo en millones de pesos (MM), con lo que tiene cargado Albor al cierre de cada día (la «carga»).</p>' + (AYUDA[S.p] || "") +
+      '<h3>Palabras</h3><p><b>Carga del día</b>: Albor al cierre de ese día, bajado a la madrugada siguiente. Se guarda una por día y no se modifica nunca.</p><p><b>Horizonte</b>: hasta dónde proyecta Albor; lo fija administración' + (S.hoy ? " (hoy, hasta el " + esc(larga(S.hoy.horizonte)) + ")" : "") + '.</p><p><b>Días 10 y fines de mes</b>: el día 10 (arrendamientos) y el último día de cada mes. <b>Fecha fija (★)</b>: el fin de campaña.</p><p><b>Comprometido</b>: hay un documento con un tercero. <b>Presupuesto</b>: lo carga finanzas por fórmula. <b>Bancos</b>: saldo conciliado del día.</p></div></div>';
+  }
+  function esqueleto() { var b = function (w, h) { return '<div class="b" style="width:' + w + ";height:" + h + 'px"></div>'; }; return '<div class="esq" id="esqueleto"><p class="cargando">Cargando la carga de hoy…</p>' + b("60%", 28) + b("100%", 70) + b("100%", 160) + b("100%", 220) + "</div>"; }
+  function errorHTML(msg) { return '<div class="aviso" role="alert" id="cf-error"><b>No se pudo cargar.</b> ' + esc(msg) + " " + queHacer(msg) + ' <button type="button" class="btn btn-sm" data-reintentar="hoy" style="margin-left: 8px;">Reintentar</button></div>'; }
+  function render() {
+    var act = document.activeElement && document.activeElement.id;
+    var y = window.scrollY;
+    var cuerpo;
+    if (S.hoyError) cuerpo = errorHTML(S.hoyError);
+    else if (!S.hoy || !S.pekin) cuerpo = esqueleto();
+    else cuerpo = { inicio: inicio, proy: proy, pekin: pekin, granos: granos, albor: albor, crudo: crudo, estado: estado, notas: notas }[S.p]();
+    var h = '<div class="app">' + lateral() + '<div class="main"><div class="top"><div class="miga">Cash Flow / <b>' + esc(TIT[S.p]) + '</b></div><div class="top-der">' + selloHTML() + '<button type="button" class="ayuda-btn" data-help="1"><span>?</span><span>¿Cómo se lee?</span></button></div></div>' +
+      '<div class="wrap">' + cuerpo + "<footer>Datos de Albor de cada madrugada · " + VERSION + ' · Los datos de un día ya guardado no cambian nunca. La clave del link queda recordada en este aparato. <a href="#" id="olvidar">Olvidar la clave en este aparato</a>.</footer></div></div></div>' + tabbar() + ayuda();
+    app.innerHTML = h;
+    if (act) { var e = document.getElementById(act); if (e) e.focus({ preventScroll: true }); }
+    window.scrollTo(0, y);
+    // El cuadro Pekín arranca mostrando las últimas cargas (las marcadas están a la derecha): una sola vez por visita.
+    if (S.p === "pekin" && !S.pkScrolled) { var pk = document.getElementById("cf-pekin"); if (pk && pk.parentElement) { pk.parentElement.scrollLeft = pk.parentElement.scrollWidth; S.pkScrolled = true; } }
+    if (S.p !== "pekin") S.pkScrolled = false;
+    if (S.anclaPend && S.p === "pekin") { var z = document.getElementById("cf-motivo"); if (z && z.querySelector("#cf-motivo-grupos, #cf-motivo-txt")) { S.anclaPend = false; z.scrollIntoView({ behavior: "auto", block: "start" }); } }
+  }
+  // Lo que necesita la pantalla abierta, si todavía no está pedido.
+  function asegurar() {
+    if (!S.hoy || !S.pekin) return;
+    var H = S.hoy, kP = bajadaDe(S.parado), kH = H.hoy;
+    if (S.p === "inicio" || S.p === "proy" || S.p === "pekin" || S.p === "estado") pedirDias();
+    if (S.p === "inicio") {
+      pedirDonde(kP, kH, kH);
+      if (H.minimo_hasta_fija) { pedirDonde(kP, kH, H.minimo_hasta_fija.fecha); var sig = suma(H.minimo_hasta_fija.fecha, 1); if (sig > kH && sig <= H.horizonte) pedirDia(sig); }
+    }
+    if (S.p === "proy") {
+      pedirDonde(kP, kH, S.mira);
+      if (S.mira >= kH) pedirDiasHasta(S.mira);
+      if (S.ab.venc && !S.vencError) pedirUna("venc", "vencimientos");
+      if (S.ab.dxd && S.dxd === "dias") { pedirDiasHasta(S.mira); Object.keys(S.diaAb).forEach(function (d) { if (S.diaAb[d] && d > kH && d <= H.horizonte) pedirDia(d); }); }
+      if (S.ab.rub && Object.keys(S.rubAb).some(function (r) { return S.rubAb[r]; }) && kP !== kH) pedirEntre(kP, kH, S.mira);
+    }
+    if (S.p === "pekin") asegurarPanel();
+    if (S.p === "granos" && !S.granosError) pedirUna("granos", "granos");
+    if (S.p === "estado" || S.p === "albor") { if (!S.estadoError) pedirUna("estado", "estado"); }
+    if (S.p === "albor") { if (S.ab.ctrl && !S.controlError) pedirUna("control", "control"); if (S.ab.cambios) pedirDonde(kP, kH, H.fecha_fija); }
+    if (S.p === "crudo") {
+      var carga = crudoCarga();
+      pedirCrudo(carga);
+      var rc = cacheCrudo[carga], cr = rc && rc.data ? rc.data : null;
+      if (cr && S.crudoVer && cr.archivos.some(function (a) { return a.id === S.crudoVer && a.existe; })) pedirCrudoFilas(cr.carga, S.crudoVer, S.crudoQ, S.crudoPag);
+      if (cr && S.ab.ccols && !S.crudoVer) pedirCrudoFilas(cr.carga, "A", "", 1);
+    }
+  }
+
+  // --- eventos delegados ----------------------------------------------------------------
+  app.addEventListener("click", function (ev) {
+    var el = ev.target.closest("[data-p],[data-sec],[data-abrir],[data-lat],[data-mas],[data-help],[data-set-mira],[data-dxd],[data-dia-ab],[data-rub-ab],[data-rub-todos],[data-mark],[data-quitar],[data-add],[data-agregar],[data-con10],[data-ver],[data-crudo],[data-rubro],[data-mot],[data-ir-par],[data-volver],[data-ir],[data-grano],[data-rxm],[data-capa],[data-crudo-ver],[data-crudo-pag],[data-crudo-q-limpiar],[data-reintentar],[data-notas-ab],[data-nota-guardar],[data-nota-dia],[data-mas-n],#olvidar");
+    if (!el) return;
+    if (el.id === "olvidar") { ev.preventDefault(); borrarLS(LS); location.replace(location.pathname); return; }
+    if (el.hasAttribute("data-help")) { S.help = el.getAttribute("data-help") === "1"; render(); return; }
+    if (el.hasAttribute("data-lat")) { S.latAb = !S.latAb; guardarLS("cf_lat", S.latAb ? "1" : "0"); render(); return; }
+    if (el.hasAttribute("data-mas") && !el.hasAttribute("data-d")) { S.masAb = !S.masAb; render(); return; }
+    if (el.hasAttribute("data-ir-par")) { if (!S.hoy) return; irAPar(el.getAttribute("data-ant"), el.getAttribute("data-dia"), true); S.masAb = false; tick(); return; }
+    if (el.hasAttribute("data-p")) {
+      var p = el.getAttribute("data-p");
+      if (el.hasAttribute("data-sub")) { S.subOcultas = !S.subOcultas; render(); return; }
+      if (el.hasAttribute("data-mira") && esFecha(el.getAttribute("data-mira"))) { S.mira = el.getAttribute("data-mira"); S.pErr = ""; }
+      S.p = p; S.help = false; S.masAb = false; S.subOcultas = false; window.scrollTo(0, 0); tick(); return;
+    }
+    if (el.hasAttribute("data-sec")) { var sid = el.getAttribute("data-sec"); S.ab[sid] = !S.ab[sid]; tick(); return; }
+    if (el.hasAttribute("data-abrir")) { var aid = el.getAttribute("data-abrir"); S.ab[aid] = true; tick(); irA("sec-" + aid); return; }
+    if (el.hasAttribute("data-set-mira")) { S.mira = el.getAttribute("data-set-mira"); S.pErr = ""; tick(); return; }
+    if (el.hasAttribute("data-dxd")) { S.dxd = el.getAttribute("data-dxd"); tick(); return; }
+    if (el.hasAttribute("data-dia-ab")) { var dd = el.getAttribute("data-dia-ab"); S.diaAb[dd] = !S.diaAb[dd]; tick(); return; }
+    if (el.hasAttribute("data-rub-ab")) { var rr = el.getAttribute("data-rub-ab"); S.rubAb[rr] = !S.rubAb[rr]; tick(); return; }
+    if (el.hasAttribute("data-rub-todos")) { var todos = el.getAttribute("data-rub-todos") === "1"; S.rubAb = {}; if (todos) { var rD = cacheD[claveD(bajadaDe(S.parado), S.hoy.hoy, S.mira)]; if (rD && rD.data) rD.data.rubros.forEach(function (x) { S.rubAb[x.rubro] = true; }); } tick(); return; }
+    if (el.hasAttribute("data-mark")) {
+      var f = el.getAttribute("data-mark"), m = S.marks.slice();
+      if (m.indexOf(f) >= 0) { if (m.length > 1) m = m.filter(function (y) { return y !== f; }); }
+      else if (m.length < 2) m = m.concat([f]);
+      else { var ord = m.slice().sort(); m = [ord[1], f]; }
+      limpiarPanel(); S.marks = m.sort(); tick(); return;
+    }
+    if (el.hasAttribute("data-quitar")) { var qq = el.getAttribute("data-quitar"); S.cols = S.cols.filter(function (y) { return y !== qq; }); tick(); return; }
+    if (el.hasAttribute("data-add")) { S.add = !S.add; render(); return; }
+    if (el.hasAttribute("data-agregar")) { var ag = el.getAttribute("data-agregar"); if (ag && S.cols.indexOf(ag) < 0) { S.cols.push(ag); S.cols.sort(); } S.add = false; tick(); return; }
+    if (el.hasAttribute("data-con10")) { S.con10 = el.getAttribute("data-con10") === "1"; tick(); return; }
+    if (el.hasAttribute("data-ver")) { var vv = el.getAttribute("data-ver"); S.ver = S.ver === vv && !el.classList.contains("kcard") && !el.closest("#cf-panel") ? null : vv; S.ab.panel = true; tick(); if (S.ver) irA("cf-panel"); return; }
+    if (el.hasAttribute("data-crudo")) { S.crudoCarga = el.getAttribute("data-crudo"); S.crudoVer = null; S.crudoQ = ""; S.crudoPag = 1; S.p = "crudo"; window.scrollTo(0, 0); tick(); return; }
+    if (el.hasAttribute("data-rubro")) { var rb = el.getAttribute("data-rubro"); S.rubSel = S.rubSel === rb ? null : rb; tick(); return; }
+    if (el.hasAttribute("data-mot")) { var mo = el.getAttribute("data-mot"); S.motFil = S.motFil === mo ? null : mo; S.compsTodos = !!S.motFil; delete S.abN["comp|"]; delete S.abN["comp|" + mo]; tick(); if (S.motFil) irA("cf-lista"); return; }
+    if (el.hasAttribute("data-volver")) { limpiarPanel(); S.marks = [S.parado, cargaHoy()].sort(); tick(); return; }
+    if (el.hasAttribute("data-ir")) { ev.preventDefault(); irA(el.getAttribute("data-ir")); return; }
+    if (el.hasAttribute("data-mas")) { var mk = el.getAttribute("data-mas"), mn = +el.getAttribute("data-n"), md = +el.getAttribute("data-d"); var cur = Math.max(mn, S.abN[mk] || mn); S.abN[mk] = Math.max(mn, cur + md * PASO); if (mk.indexOf("comp|") === 0 && md < 0) S.compsTodos = false; tick(); return; }
+    if (el.hasAttribute("data-grano")) { S.grano = el.getAttribute("data-grano"); tick(); return; }
+    if (el.hasAttribute("data-rxm")) { S.rxm = el.getAttribute("data-rxm"); tick(); return; }
+    if (el.hasAttribute("data-capa")) { var cp = el.getAttribute("data-capa"); S.capaAb[cp] = !S.capaAb[cp]; render(); return; }
+    if (el.hasAttribute("data-crudo-ver")) { var cv = el.getAttribute("data-crudo-ver"); S.crudoVer = S.crudoVer === cv ? null : cv; S.crudoPag = 1; tick(); if (S.crudoVer) irA("cf-crudo-ver"); return; }
+    if (el.hasAttribute("data-crudo-pag")) { S.crudoPag = Math.max(1, +el.getAttribute("data-crudo-pag") || 1); tick(); irA("cf-crudo-ver"); return; }
+    if (el.hasAttribute("data-crudo-q-limpiar")) { S.crudoQ = ""; S.crudoPag = 1; tick(); return; }
+    if (el.hasAttribute("data-reintentar")) {
+      var que = el.getAttribute("data-reintentar");
+      if (que === "hoy") { S.hoy = null; S.pekin = null; render(); pedirHoy(); return; }
+      S[que] = null; S[que + "Error"] = null; S[que + "Cargando"] = false; tick(); return;
+    }
+    if (el.hasAttribute("data-notas-ab")) { S.notasAb = !S.notasAb; render(); return; }
+    if (el.hasAttribute("data-nota-dia")) { S.notaDia = el.getAttribute("data-nota-dia") || null; tick(); return; }
+    if (el.hasAttribute("data-nota-guardar")) {
+      var inp = document.getElementById(el.getAttribute("data-nota-guardar"));
+      var dia = el.getAttribute("data-nota-para") || S.notaDia || null;
+      if (inp && agregarNota(inp.value, dia)) { inp.value = ""; render(); ["cf-notas-lista", "cf-notas-lista-xl"].forEach(function (id) { var l = document.getElementById(id); if (l) l.scrollTop = l.scrollHeight; }); }
+      return;
+    }
+  });
+  app.addEventListener("toggle", function (ev) { var d = ev.target; if (d && d.tagName === "DETAILS" && d.hasAttribute("data-o")) S.abiertos[d.getAttribute("data-o")] = d.open; }, true);
+  app.addEventListener("submit", function (ev) {
+    var f = ev.target;
+    if (f && f.hasAttribute && f.hasAttribute("data-crudo-q")) { ev.preventDefault(); var i = document.getElementById("cf-crudo-q"); S.crudoQ = i ? i.value.trim() : ""; S.crudoPag = 1; tick(); }
+  });
+  app.addEventListener("change", function (ev) {
+    var el = ev.target;
+    if (!el.hasAttribute || !el.hasAttribute("data-set")) return;
+    var que = el.getAttribute("data-set"), v = el.value;
+    if (que === "parado") {
+      if (!esFecha(v)) { S.pErr = "Elegí una fecha."; render(); return; }
+      if (v < primeraCarga() || v > cargaHoy()) { S.pErr = "«Parado el» va del " + larga(primeraCarga()) + " (primera carga con saldo de bancos) a hoy."; render(); return; }
+      var cp = cargaPara(v); S.parado = cp.carga; S.paradoPedido = v; S.pErr = ""; S.rubAb = {}; tick(); return;
+    }
+    if (que === "mira") {
+      if (!esFecha(v)) { S.pErr = "Elegí una fecha."; render(); return; }
+      if (v < S.pekin.bancos_desde || v > S.hoy.horizonte) { S.pErr = "«Mirando al» va del " + larga(S.pekin.bancos_desde) + " al " + larga(S.hoy.horizonte) + " (hasta donde proyecta Albor)."; render(); return; }
+      S.mira = v; S.pErr = ""; S.diaAb = {}; tick(); return;
+    }
+    if (que === "addDia") { if (esFecha(v)) { S.addDia = v; render(); } return; }
+    if (que === "crudoCarga") { if (esFecha(v) && v >= PRIMERA_CARGA && v <= cargaHoy()) { S.crudoCarga = v; S.crudoVer = null; S.crudoQ = ""; S.crudoPag = 1; tick(); } return; }
+    if (que === "notaDia") { S.notaDia = esFecha(v) ? v : null; tick(); return; }
+  });
+
+  // --- arranque ----------------------------------------------------------------------
+  if (!k) {
+    app.innerHTML = '<div class="wrap"><div class="aviso" role="alert" id="cf-error"><b>Falta la clave en el link.</b> El link completo lleva la clave (<code>?k=…</code> o <code>#k=…</code>): pedíselo a quien te lo pasó y abrilo entero. Después de la primera vez, este aparato la recuerda.</div></div>';
+    return;
+  }
+  render();
+  pedirHoy();
+  pedirSello();
+})();
+</script>
+</body>
+</html>
