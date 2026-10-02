@@ -45,6 +45,10 @@
 //       Si algo si falla, exit 1 con "FALLA:" y el watchdog abre WEB_CAIDA (ROJO)
 //       con la salida completa.
 //
+//   10. (v1.2.1, 02/10/2026) La lista «Comprobantes que más movieron» aparece SIN tocar nada
+//       (caso 15/09 · hoy · 30/11): en la v1.1 la página no la pedía al llegar el par y
+//       quedaba en «Buscando los comprobantes…» hasta que la persona tocaba algo.
+//
 //  Uso:
 //    TABLERO_KEY=... node probar_cashflow.mjs            -> cashflow.html LOCAL
 //    TABLERO_KEY=... TABLERO_URL=https://.../cashflow.html node probar_cashflow.mjs
@@ -211,6 +215,17 @@ async function casos() {
   // Caso 2: 15/09 · hoy · 30/11
   const pag = await casoCambio(ctx, '2026-09-15', null, { a: '−1.315,29', b: '−1.018,78', dif: '▲ +296,52' });
   if (pag) {
+    // 10. (v1.2.1) La lista de comprobantes aparece sin tocar nada (la v1.1 no la pedía al llegar el par).
+    {
+      const rot = 'Qué cambió 09-15 · hoy · 30/11 · lista sin tocar nada';
+      try {
+        await pag.waitForFunction(() => document.querySelectorAll('#cf-comps .cf-row:not(.cf-head)').length > 0, null, { timeout: 45000 });
+        const n = await pag.evaluate(() => document.querySelectorAll('#cf-comps .cf-row:not(.cf-head)').length);
+        ok(`${rot}: la lista apareció sola (${n} renglones)`);
+      } catch {
+        falla(`${rot}: la lista de comprobantes no apareció en 45 s sin tocar nada (dice "${(await texto(pag, '#cf-comps')).slice(0, 160)}")`);
+      }
+    }
     // 4. La ultima columna cambia al mover «Mirando al» (30/11 -> 31/10).
     const antes = (await celdas(pag, '#cf-q-total'))[6];
     const filaAntes = (await celdas(pag, '#cf-q-tabla .cf-fila-rubro'))[6];

@@ -49,6 +49,10 @@
                              registro, incidentes abiertos) y la bitácora de los últimos 10 días hábiles.
     Deep link: #tab=granos&grano=Soja · #tab=fiar. #hoy= también congela estas dos vistas.
   Prueba de humo: probar_cashflow.mjs (mismo repo).
+
+  v1.1.1 (02/10/2026) — ARREGLO: al llegar la respuesta de dondeteparas la página solo volvía a pintar y no pedía
+  la lista de comprobantes (?vista=entre), que quedaba en «Buscando los comprobantes…» hasta que la persona tocaba
+  algo. Ahora, al llegar el par, se pide lo que falte (render(); asegurar();). Nada más cambia.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -367,7 +371,8 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     traer(p)
       .then(function (d) { cacheD[key] = { data: d }; })
       .catch(function (e) { cacheD[key] = { error: e.message || "No se pudo calcular." }; })
-      .then(function () { render(); });
+      // v1.1.1 (02/10/2026): al llegar el par se pide la lista de comprobantes (antes quedaba en «Buscando…» hasta tocar algo).
+      .then(function () { render(); asegurar(); });
   }
   var claveE = function (a, b, fecha, todos) { return [a, b, fecha, todos ? 1 : 0].join("|"); };
   function pedirEntre(a, b, fecha, todos) {
@@ -1043,7 +1048,7 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     else if (S.tab === "hecho") h += cashFlowHoy();
     else if (S.tab === "granos") h += granos();
     else h += estadoWeb();
-    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1.1 (30/09/2026) · Los datos de un día ya guardado no cambian nunca. " +
+    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1.1.1 (02/10/2026) · Los datos de un día ya guardado no cambian nunca. " +
       'La clave del link queda recordada en este aparato. <a href="#" id="olvidar">Olvidar la clave en este aparato</a>.</footer></div>' + ayuda();
     app.innerHTML = h;
     // La leyenda «Deslizá la tabla» solo si la tabla de al lado de verdad se desliza.
