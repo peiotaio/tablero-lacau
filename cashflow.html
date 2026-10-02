@@ -53,6 +53,34 @@
   v1.1.1 (02/10/2026) — ARREGLO: al llegar la respuesta de dondeteparas la página solo volvía a pintar y no pedía
   la lista de comprobantes (?vista=entre), que quedaba en «Buscando los comprobantes…» hasta que la persona tocaba
   algo. Ahora, al llegar el par, se pide lo que falte (render(); asegurar();). Nada más cambia.
+
+  v1.2 (02/10/2026) — «QUÉ CAMBIÓ: SUBTÍTULO POR MOTIVO» (propuesta #6 de cf_propuestas, aprobada por Peio el 02/10;
+  PROMPT_code_que_cambio_por_motivo_2026-10-02.md, VERSIÓN 2.2; maqueta claude.ai/artifact/VksnHV1GvjJWdT3DUBqGNp).
+  Nada de pestaña nueva: todo lo que había queda tal cual y lo nuevo entra como subtítulo dentro de la tarjeta
+  «¿Por qué cambió? Comprobantes que más movieron» de Qué cambió, conectado con lo que ya está.
+    * ?vista=variaciones_dias[&hoy=]              (liviana) la fila «De un día para el otro» (últimos 10 días con foto,
+                                                  atajo que pone «Parado el» = día anterior y «Contra» = ese día) y la
+                                                  píldora «N a revisar» de Saldo proyectado (ultimo.avisos sin
+                                                  cambio_horizonte ni ejecutado_grande; si falla, no se muestra).
+    * ?vista=variaciones&fecha=[&rubro=][&motivo=] (completa) «Por motivo»: solo si el par es un día contra el anterior
+                                                  (existe && anterior === bajada_a && fecha === bajada_b); si no, una
+                                                  línea «elegí dos días seguidos». existe=false → «no hay foto», nunca
+                                                  «sin cambios». cierra=false → no se agrupa (es un bug de la función).
+                                                  Mira SIEMPRE al fin del horizonte, aunque «Mirando al» tenga otra fecha.
+                                                  La función manda 15 líneas por motivo (un par es una línea); «Ver 10
+                                                  más» pide &motivo=X con todas. El clic en «Por rubro» filtra SOLO «Por
+                                                  motivo» (&rubro=XX; motivos y total recalculados por la función).
+                                                  Los totales por motivo salen de `motivos`, nunca de sumar filas.
+    * Lista «Comprobantes que más movieron»: se pide siempre con todos=1 y se despliega de a poco (20, «Ver 10 más ·
+      quedan N», «Ver menos», nunca menos de 20; #todos=1 abre todo). Cada renglón lleva la etiqueta de su motivo
+      (cruce rubro_cod + descripcion + referente; puede llevar más de una). «Ver estos en la lista ↓» filtra la lista
+      a ese motivo (chip «Solo: … ✕»); bancos no va a la lista (conciliación, vencido, sin explicar ni préstamos).
+    * Estado de la web: «Ver por qué» en los días con salto grande del total (|total| ≥ 500 MM, de los últimos 10).
+    * Colores de la barra y los puntos de motivo (decisión de Peio 02/10 14:27, excepción a F2 solo acá); el dorado de
+      fondo sigue siendo solo para «A revisar»; «PASÓ AL ÚLTIMO MES» va en gris.
+    Deep link: #tab=cambio&desde=&hasta=&motivo=&ancla=motivo&todos=1. El filtro de motivo se limpia al cambiar el par.
+    Cuando la función publicada todavía no tiene estas vistas (responde otra cosa), «Por motivo» lo dice y la lista
+    sigue funcionando como siempre.
 -->
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -164,6 +192,51 @@ input[type=date]{min-height:44px;padding:8px 12px;border:1px solid #BDB6A6;borde
 .cf-est details{font-size:13px;color:#5D6166}.cf-est summary{cursor:pointer;font-weight:600;color:#26292C}
 .cf-est ul{margin:0;padding-left:20px;font-size:14px;display:flex;flex-direction:column;gap:4px}
 footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12px}
+/* Por motivo (v1.2): subtítulos dentro de «¿Por qué cambió?», fila «De un día para el otro», barra, grupos y lista. */
+.cf-subt{border-top:1px solid #E3DDD1;padding:14px 10px;display:flex;flex-direction:column;gap:10px}
+.cf-subh{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.cf-subh h4{margin:0;font-size:15px;font-weight:800}
+.cf-subp{font-size:13px;color:#5D6166}
+#cf-motivo{background:#FFFCF5}
+.cf-dchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.cf-dchip{flex:0 0 auto;min-height:44px;padding:6px 14px;border-radius:12px;cursor:pointer;border:1px solid #D6CFC1;background:#FFFFFF;color:#26292C;display:grid;text-align:left;font-size:13px;font-weight:600}
+.cf-dchip small{font-size:12px;font-weight:600}
+.cf-dchip[aria-pressed="true"]{border:2px solid #2F3437;padding:5px 13px;box-shadow:0 0 0 3px rgba(47,52,55,0.12)}
+.cf-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:#EFEDE8}
+.cf-bar span{height:100%}
+.cf-ley{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:#5D6166}
+.cf-ley i,.cf-gtag i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cf-grupos{border:1px solid #E3DDD1;border-radius:10px;overflow:hidden;background:#FFFFFF}
+.cf-grupos details{border-top:1px solid #E3DDD1}
+.cf-grupos details:first-child{border-top:0}
+.cf-grupos summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:12px minmax(0,1fr) auto 14px;gap:12px;align-items:center;padding:12px 14px;min-height:44px}
+.cf-grupos summary::-webkit-details-marker{display:none}
+.cf-grupos summary:hover{background:#F7F4EE}
+.cf-grupos summary:focus-visible{outline:2px solid #2F3437;outline-offset:-2px}
+.cf-dot2{width:12px;height:12px;border-radius:3px}
+.cf-st strong{display:block;font-size:15px;font-weight:700}.cf-st small{color:#5D6166;font-size:13px}
+.cf-sv{text-align:right;font-size:16px;font-weight:700}
+.cf-car{color:#5D6166;font-size:12px;transition:transform .15s}
+.cf-grupos details[open] .cf-car{transform:rotate(180deg)}
+.cf-items{padding:0 14px 12px 38px}
+.cf-it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:8px 0;border-top:1px dashed #E3DDD1;font-size:14px}
+.cf-it .d{min-width:0;overflow-wrap:anywhere;font-weight:500}
+.cf-it .m{color:#5D6166;font-size:12px;font-weight:400}
+.cf-it > .cf-num{font-weight:600;text-align:right}
+.cf-tagg{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:1px 7px;border-radius:999px;background:#EFEDE8;color:#5D6166;border:1px solid #D6CFC1;margin-left:6px;vertical-align:1px}
+.cf-gtag{display:inline-flex;align-items:center;margin-right:8px;white-space:nowrap;font-size:12px;color:#5D6166}
+.cf-regla{font-size:11px;color:#5D6166;font-style:italic}
+.cf-detb{font-size:12px;color:#26292C;background:#EFEDE8;border-radius:6px;padding:4px 8px;margin-top:4px;display:inline-block;white-space:pre-line}
+.cf-masbar{display:flex;flex-wrap:wrap;gap:4px 18px;padding-top:4px}
+.cf-mas{border:0;background:none;color:#2F3437;font-size:13px;font-weight:700;padding:0 4px;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-family:inherit}
+.cf-filtro{font-size:13px;padding:6px 10px;border-radius:8px;background:#EFEDE8;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cf-x{border:1px solid #D6CFC1;background:#FFFFFF;border-radius:999px;min-width:44px;min-height:44px;cursor:pointer;font-size:13px}
+.cf-lnk{border:0;background:none;padding:0 4px;min-height:44px;display:inline-flex;align-items:center;color:#2F3437;font-weight:700;font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-family:inherit}
+.cf-lect{font-size:14px;padding:10px 14px;background:#FFFFFF;border:1px solid #D6CFC1;border-radius:8px}
+.cf-avsel{font-size:13px;padding:8px 12px;border-radius:8px;background:#EFEDE8;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.cf-pillrev{font-size:13px;font-weight:700;padding:0 14px;border-radius:999px;background:#FDF1D6;color:#8A5A0C;border:1px solid #E9CF95;margin-left:8px;cursor:pointer;font-family:inherit;min-height:44px;display:inline-flex;align-items:center}
+.cf-imp.cf-rev{align-items:flex-start}
+.cf-imp.cf-rev .tx{display:flex;flex-direction:column;gap:10px;font-size:15px}
 .cf-help{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(20,20,19,0.45);z-index:50;display:flex;justify-content:flex-end}
 .cf-help > div{width:100%;max-width:480px;height:100%;overflow-y:auto;background:#FFFFFF;color:#26292C;padding:24px 26px 40px;display:flex;flex-direction:column;gap:18px}
 .cf-help dl{margin:0;display:grid;grid-template-columns:minmax(0,120px) minmax(0,1fr);gap:6px 12px;font-size:14px}
@@ -215,6 +288,10 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
  .cf-gd > div:first-child{white-space:normal}
  .cf-g7 > div:nth-child(2){display:none}
  .cf-help > div{max-width:100%}
+ .cf-pillrev{display:flex;margin:8px 0 0;width:fit-content}
+ .cf-items{padding-left:14px}
+ .cf-subt{padding:12px 10px}
+ .cf-grupos summary{padding:10px 10px}
 }
 </style>
 </head>
@@ -302,13 +379,38 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     P: nuevoSel(),                  // selector de Saldo proyectado
     Q: nuevoSel(),                  // selector de Qué cambió
     rubSel: hash.get("rubro") && /^\d{2}A?$/.test(hash.get("rubro")) ? hash.get("rubro") : null,
-    compsTodos: false,
+    compsTodos: hash.get("todos") === "1",       // v1.2: #todos=1 abre la lista entera de una vez
+    motFil: null,                                // v1.2: filtro de la lista por motivo (#motivo=)
+    ancla: hash.get("ancla") === "motivo" ? "motivo" : null, anclaPend: hash.get("ancla") === "motivo",
+    ab: {}, abiertos: {}, saltoAviso: false,     // v1.2: cuántos se ven por grupo / lista, grupos abiertos, aviso del atajo
+    dias: null, diasError: null, diasCargando: false,   // ?vista=variaciones_dias (v1.2)
     granos: null, granosError: null,   // ?vista=granos (v1.1)
     grano: hash.get("grano") || "Todos",
     estado: null, estadoError: null    // ?vista=estado (v1.1)
   };
   var cacheD = {};   // dondeteparas, por parámetros: { data } | { error } | { cargando: true }
   var cacheE = {};   // entre, ídem
+  var cacheV = {};   // variaciones (v1.2), por fecha|rubro|motivo, ídem. Un error acá no tapa la lista.
+  // v1.2: los 11 motivos en el orden de pantalla, con su color (decisión de Peio 02/10 14:27) y si abre solo.
+  var G = [
+    ["real", "Nuevo o eliminado", "Cambia el total: altas y bajas sin contrapartida", "#B0352A", true],
+    ["horizonte", "Entró al horizonte", "Meses nuevos que se suman a la proyección", "#6E8A8A", false],
+    ["ajuste", "Cambió el importe", "Mismo comprobante, otro monto (precio, TC, toneladas, rubro)", "#2B4C7E", false],
+    ["fecha", "Se corrió de fecha", "Mismo comprobante y monto, otra fecha: no cambia el total", "#C9891C", false],
+    ["anticipo", "Anticipo pagado o cobrado", "Salió o entró plata y la contrapartida quedó como anticipo", "#8C6D4F", true],
+    ["ejecutado", "Se pagó o se cobró", "Movimientos de banco del día y pendientes que se cancelaron", "#8E9196", false],
+    ["conciliacion", "Conciliación de bancos", "Bancos con fechas pasadas y ajuste del saldo de la bajada del día", "#D3CEC4", false],
+    ["vencio", "Vencido que sale del saldo", "Contratos y retenciones vencidos sin cobrar (regla de vencidos)", "#9A8F7A", false],
+    ["financiacion", "Préstamos y cauciones", "Plata que entra o sale por préstamos o cauciones: cambia la caja, no el negocio", "#5E6B73", false],
+    ["interno", "Pase entre cuentas propias", "Las dos puntas en bancos: netea cero", "#B9B2A4", false],
+    ["sin_explicar", "Sin explicar", "Diferencia entre la foto y el detalle: revisar", "#2F3437", true]
+  ];
+  var GN = {}; G.forEach(function (g) { GN[g[0]] = g; });
+  var SIN_LISTA = { conciliacion: 1, vencio: 1, sin_explicar: 1, financiacion: 1 };   // motivos que no van a la lista (bancos)
+  var P_GRUPO = 5, P_LISTA = 20, PASO = 10, SALTO_GRANDE = 500;
+  if (GN[hash.get("motivo")]) S.motFil = hash.get("motivo");
+  // Nombres de rubro: los que manda dondeteparas; estos son el respaldo para códigos que no vengan.
+  var RUB = { "01": "Bancos", "02": "Ventas", "02A": "Ventas · anticipos", "03": "Contratos de venta", "04": "Otros ingresos", "05": "Compras", "05A": "Compras · anticipos", "07": "Órdenes de compra", "09": "Otros egresos", "10": "Retenciones de ganancias", "11": "Cheques de terceros", "12": "Labores de terceros", "13": "Contratos dev. retenciones", "15": "Arrendamientos", "16": "Fletes de cereales", "17": "Labores pendientes" };
 
   // --- pedir al servidor ----------------------------------------------------------
   function traer(p) {
@@ -371,7 +473,7 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     traer(p)
       .then(function (d) { cacheD[key] = { data: d }; })
       .catch(function (e) { cacheD[key] = { error: e.message || "No se pudo calcular." }; })
-      // v1.1.1 (02/10/2026): al llegar el par se pide la lista de comprobantes (antes quedaba en «Buscando…» hasta tocar algo).
+      // v1.2: al llegar el par se piden la lista y «Por motivo» (antes quedaban en «Buscando…» hasta tocar algo).
       .then(function () { render(); asegurar(); });
   }
   var claveE = function (a, b, fecha, todos) { return [a, b, fecha, todos ? 1 : 0].join("|"); };
@@ -385,6 +487,34 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
       .then(function (d) { cacheE[key] = { data: d }; })
       .catch(function (e) { cacheE[key] = { error: e.message || "No se pudieron leer los comprobantes." }; })
       .then(function () { render(); });
+  }
+  // v1.2: la vista liviana (fila «De un día para el otro» y píldora), una vez por día de hoy.
+  function pedirDias() {
+    if (S.dias || S.diasCargando || S.diasError) return;
+    S.diasCargando = true;
+    traer(new URLSearchParams({ vista: "variaciones_dias", hoy: S.hoy.hoy }))
+      .then(function (d) {
+        if (!d || !Array.isArray(d.dias)) throw new Error("La función publicada todavía no tiene la vista «variaciones_dias».");
+        S.dias = d;
+      })
+      .catch(function (e) { S.diasError = e.message || "No se pudieron leer los días."; })
+      .then(function () { S.diasCargando = false; render(); });
+  }
+  var claveV = function (fecha, rubro, motivo) { return [fecha, rubro || "", motivo || ""].join("|"); };
+  function pedirVar(fecha, rubro, motivo) {
+    var key = claveV(fecha, rubro, motivo);
+    if (cacheV[key]) return;
+    cacheV[key] = { cargando: true };
+    var p = new URLSearchParams({ vista: "variaciones", fecha: fecha });
+    if (rubro) p.set("rubro", rubro);
+    if (motivo) p.set("motivo", motivo);
+    traer(p)
+      .then(function (d) {
+        if (!d || typeof d.existe !== "boolean") throw new Error("La función publicada todavía no tiene la vista «variaciones».");
+        cacheV[key] = { data: d };
+      })
+      .catch(function (e) { cacheV[key] = { error: e.message || "No se pudo agrupar por motivo." }; })
+      .then(function () { render(); asegurar(); });   // asegurar: lo que dependa de esta respuesta (motivo entero, filtro)
   }
   // v1.1: Granos y Estado de la web, una vez cada una (con el mismo día congelado si lo hay).
   function pedirGranos() {
@@ -410,14 +540,34 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     if (S.tab === "granos" && !S.granosError) pedirGranos();
     if (S.tab === "fiar" && !S.estadoError) pedirEstado();
     if (!S.hoy) return;
+    if (S.tab === "venimos" || S.tab === "cambio" || S.tab === "fiar") pedirDias();   // v1.2
     if (S.tab === "venimos") pedirDonde(S.P);
     if (S.tab === "cambio") {
       pedirDonde(S.Q);
       if (S.rubSel) pedirDonde(S.Q, S.rubSel);
       var c = cacheD[claveD(S.Q)];
-      if (c && c.data && !c.data.misma_bajada) pedirEntre(c.data.bajada_a.fecha, c.data.bajada_b.fecha, c.data.mira, S.compsTodos);
+      if (c && c.data && !c.data.misma_bajada) {
+        var ka = c.data.bajada_a.fecha, kb = c.data.bajada_b.fecha;
+        // v1.2: la lista se pide entera (todos=1) y se despliega de a poco en la página.
+        pedirEntre(ka, kb, c.data.mira, true);
+        // v1.2: «Por motivo» (completa, con el rubro elegido si lo hay). La función dice si el par es de un día
+        // para el otro (anterior === bajada_a); si no, la página muestra la línea «elegí dos días seguidos».
+        pedirVar(kb, S.rubSel, null);
+        var v = cacheV[claveV(kb, S.rubSel, null)];
+        if (v && v.data && v.data.existe && v.data.anterior === ka) {
+          // «Ver 10 más» más allá de lo que vino recortado: todas las filas de ese motivo.
+          Object.keys(S.ab).forEach(function (key) {
+            var m = key.match(/^G(\w+)\|/);
+            if (!m || !v.data.motivos[m[1]]) return;
+            if (S.ab[key] > lineasCargadas(v.data, m[1]) && !cacheV[claveV(kb, S.rubSel, m[1])]) pedirVar(kb, S.rubSel, m[1]);
+          });
+          // El filtro de la lista por motivo necesita todas las filas de ese motivo (sin rubro: la lista no se filtra por rubro).
+          if (S.motFil) pedirVar(kb, null, S.motFil);
+        }
+      }
     }
   }
+  var lineasCargadas = function (V, g) { return lineas(V.filas.filter(function (f) { return f.motivo === g; })).length; };
   function guardarHash() {
     var p = new URLSearchParams();
     if (kOrigen === "hash") p.set("k", k);
@@ -431,6 +581,9 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     };
     poner(S.P, "p"); poner(S.Q, "");
     if (S.rubSel) p.set("rubro", S.rubSel);
+    if (S.tab === "cambio" && S.motFil) p.set("motivo", S.motFil);       // v1.2
+    if (S.tab === "cambio" && S.ancla) p.set("ancla", S.ancla);          // v1.2
+    if (S.tab === "cambio" && S.compsTodos) p.set("todos", "1");         // v1.2
     if (S.grano !== "Todos") p.set("grano", S.grano);
     if (hoyParam) p.set("hoy", hoyParam);
     if (prueba) p.set("prueba", "1");
@@ -448,15 +601,52 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     if (campo !== "mira" && (v < PRIMERA || v > H.hoy)) { s.err = "El día en que te parás va del " + larga(PRIMERA) + " (primera bajada guardada) a hoy."; render(); return; }
     if (campo === "mira" && (v < PRIMERA || v > H.horizonte)) { s.err = "«Mirando al» va del " + larga(PRIMERA) + " al " + larga(H.horizonte) + " (hasta donde proyecta Albor)."; render(); return; }
     if (n.desde > n.hasta) { s.err = "«Parado el» tiene que ser anterior o igual al día contra el que comparás."; render(); return; }
+    if (which === "Q" && campo !== "mira" && (n.desde !== s.desde || n.hasta !== (s.otro ? s.hasta : H.hoy))) limpiar();   // v1.2: cambió el par
     s.desde = n.desde; s.mira = n.mira; if (s.otro) s.hasta = n.hasta; s.err = "";
     tick();
+  }
+  // v1.2: al cambiar el par se limpian el filtro de motivo, los «ver más», los grupos abiertos y el aviso del atajo.
+  function limpiar() { S.motFil = null; S.ab = {}; S.abiertos = {}; S.compsTodos = false; S.saltoAviso = false; S.ancla = null; S.anclaPend = false; }
+  // v1.2: el atajo «De un día para el otro» (y la píldora / «Ver por qué»): Parado el = día anterior, Contra = ese día.
+  function saltarA(ant, fecha, conAncla) {
+    var H = S.hoy;
+    if (!esFecha(ant) || !esFecha(fecha) || ant < PRIMERA || fecha > H.hoy || ant > fecha) return;
+    limpiar();
+    S.Q.desde = ant; S.Q.otro = fecha !== H.hoy; S.Q.hasta = S.Q.otro ? fecha : H.hoy; S.Q.err = "";
+    S.saltoAviso = true;
+    if (conAncla) { S.ancla = "motivo"; S.anclaPend = true; }
   }
 
   // --- eventos delegados ------------------------------------------------------------
   app.addEventListener("click", function (ev) {
-    var el = ev.target.closest("[data-tab],[data-set],[data-otro],[data-help],[data-rubro],[data-grano],[data-comps],[data-reintentar],#olvidar");
+    var el = ev.target.closest("[data-tab],[data-set],[data-otro],[data-help],[data-rubro],[data-grano],[data-comps],[data-reintentar],[data-dia],[data-mot],[data-mas],[data-ir],[data-volver],#olvidar");
     if (!el) return;
     if (el.id === "olvidar") { ev.preventDefault(); olvidar(); location.replace(location.pathname); return; }
+    // v1.2: «De un día para el otro», píldora «N a revisar» y «Ver por qué» (con data-tab y data-ir bajan a «Por motivo»).
+    if (el.hasAttribute("data-dia")) {
+      if (!S.hoy) return;
+      saltarA(el.getAttribute("data-ant"), el.getAttribute("data-dia"), el.getAttribute("data-ir") === "motivo");
+      if (el.hasAttribute("data-tab")) { S.tab = el.getAttribute("data-tab"); S.help = false; }
+      tick(); return;
+    }
+    if (el.hasAttribute("data-volver")) { limpiar(); S.Q.desde = S.hoy.hoy; S.Q.otro = false; S.Q.hasta = S.hoy.hoy; S.Q.err = ""; tick(); return; }
+    if (el.hasAttribute("data-ir")) { ev.preventDefault(); var z = document.getElementById(el.getAttribute("data-ir")); if (z) z.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (el.hasAttribute("data-mot")) {
+      var mo = el.getAttribute("data-mot");
+      S.motFil = S.motFil === mo ? null : mo;
+      // «Ver estos en la lista» abre la lista completa (equivale a todos=1); al sacar el filtro vuelve a los 20 de siempre.
+      S.compsTodos = !!S.motFil; delete S.ab["comp|"]; delete S.ab["comp|" + mo];
+      tick();
+      if (S.motFil) { var zl = document.getElementById("cf-lista"); if (zl) zl.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      return;
+    }
+    if (el.hasAttribute("data-mas")) {
+      var mk = el.getAttribute("data-mas"), mn = +el.getAttribute("data-n"), md = +el.getAttribute("data-d");
+      var cur = Math.max(mn, S.ab[mk] || mn);
+      S.ab[mk] = Math.max(mn, cur + md * PASO);
+      if (mk.indexOf("comp|") === 0 && md < 0) S.compsTodos = false;
+      tick(); return;
+    }
     if (el.hasAttribute("data-reintentar")) {
       var que = el.getAttribute("data-reintentar");
       if (que === "granos") { S.granos = null; S.granosError = null; render(); pedirGranos(); return; }
@@ -480,6 +670,11 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     if (el.hasAttribute("data-rubro")) { var r = el.getAttribute("data-rubro"); S.rubSel = S.rubSel === r ? null : r; tick(); return; }
     if (el.hasAttribute("data-comps")) { S.compsTodos = el.getAttribute("data-comps") === "todos"; tick(); return; }
   });
+  // v1.2: qué grupos de «Por motivo» abrió o cerró la persona (se respeta al volver a pintar).
+  app.addEventListener("toggle", function (ev) {
+    var d = ev.target;
+    if (d && d.tagName === "DETAILS" && d.hasAttribute("data-o")) S.abiertos[d.getAttribute("data-o")] = d.open;
+  }, true);
   app.addEventListener("change", function (ev) {
     var el = ev.target;
     if (el.hasAttribute && el.hasAttribute("data-set")) { var a = el.getAttribute("data-set").split(":"); setSel(a[0], a[1], el.value); }
@@ -714,9 +909,147 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     // La franja: se recalcula con el selector (decisión 2).
     var franja = d ? "Contra lo cargado " + (etiquetaContra(s.otro ? s.hasta : H.hoy)) + ", " + pl(s.desde).toLowerCase() + ", el saldo proyectado al " + larga(d.mira) + " cambió " + FA2(d.cambio) + " MM." : "Calculando…";
     h += '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; background: #FFFFFF; border: 1px solid #D6CFC1; border-radius: 12px;">' +
-      '<span class="cf-num" id="cf-vslunes" style="font-size: 14px;">' + esc(franja) + '</span><button type="button" class="cf-btn cf-grande" data-tab="cambio" data-copiar="1">Ver qué cambió</button></div>';
+      '<span class="cf-num" id="cf-vslunes" style="font-size: 14px;">' + esc(franja) +
+      // v1.2: la píldora «N a revisar» (de la vista liviana; si falló, no aparece): abre Qué cambió en ayer → hoy y baja a «Por motivo».
+      (aRevisar() ? '<button type="button" class="cf-pillrev" id="cf-pill" data-ant="' + S.dias.ultimo.anterior + '" data-dia="' + S.dias.ultimo.fecha + '" data-tab="cambio" data-ir="motivo">' + aRevisar() + " a revisar</button>" : "") +
+      '</span><button type="button" class="cf-btn cf-grande" data-tab="cambio" data-copiar="1">Ver qué cambió</button></div>';
     return h + "</section>";
   }
+
+  // ---- Por motivo (v1.2): piezas ----
+  var rubNombre = function (cod, d) {
+    var x = d && d.rubros ? d.rubros.filter(function (r) { return r.rubro === cod; })[0] : null;
+    return cod + " · " + (x && x.etiqueta ? x.etiqueta : (RUB[cod] || ""));
+  };
+  // Las filas de la función, agrupadas en líneas: un par (fecha, pase, anticipo, reclasificación: mismo `par`) es
+  // UNA línea. Igual que la maqueta. No se calcula ningún total acá: eso viene en `motivos`.
+  function lineas(F, d) {
+    var pares = {}, orden = [], out = [];
+    F.forEach(function (x) {
+      if (x.par !== null && x.par !== undefined) { if (!pares[x.par]) { pares[x.par] = []; orden.push(x.par); } pares[x.par].push(x); return; }
+      out.push({ g: x.motivo, t: (x.referente ? x.referente + " · " : "") + (x.descripcion || ""), det: x.detalle || null, s: rubNombre(x.rubro_cod, d),
+                 f1: x.fecha, f2: null, n: x.mm, b: Math.abs(x.mm), w: !!x.al_borde, r: x.regla || "", rc: [x.rubro_cod] });
+    });
+    orden.forEach(function (k) {
+      var a = pares[k], g = a[0].motivo;
+      var otro = a.filter(function (x) { return x.rubro_cod !== "01"; })[0] || a[0];
+      var neg = a.filter(function (x) { return x.mm < 0; })[0] || a[0];
+      var pos = a.filter(function (x) { return x !== neg; })[0] || a[0];
+      var t, f1, f2 = null;
+      if (g === "interno") { t = (neg.referente || "") + " → " + (pos.referente || ""); f1 = neg.fecha; }
+      else {
+        t = (otro.referente ? otro.referente + " · " : "") + (otro.descripcion || "");
+        var baja = a.filter(function (x) { return x.tipo === "BAJA"; })[0], bco = a.filter(function (x) { return x.rubro_cod === "01"; })[0];
+        var o = bco || baja || neg, dd = a.filter(function (x) { return x !== o; })[0] || o;
+        f1 = o.fecha; f2 = dd.fecha === o.fecha ? null : dd.fecha;
+      }
+      var rcs = []; a.forEach(function (x) { if (rcs.indexOf(x.rubro_cod) < 0) rcs.push(x.rubro_cod); });
+      var det = (a.filter(function (x) { return x.detalle; })[0] || {}).detalle || null;
+      var nn = 0, bb = 0; a.forEach(function (x) { nn += x.mm; bb = Math.max(bb, Math.abs(x.mm)); });
+      out.push({ g: g, t: t, det: det, s: rcs.map(function (c) { return rubNombre(c, d); }).join(" ↔ "), f1: f1, f2: f2, n: r2(nn), b: bb, w: a.some(function (x) { return x.al_borde; }), r: a[0].regla || "", rc: rcs });
+    });
+    return out;
+  }
+  var mueve = function (l) { return (l.g === "fecha" || l.g === "interno" || l.g === "anticipo") && Math.abs(l.n) < 0.005; };
+  var peso = function (l) { return mueve(l) ? l.b : Math.abs(l.n); };
+  function itemHTML(l) {
+    var meta = [l.s, l.f2 ? corta(l.f1) + " → " + corta(l.f2) : corta(l.f1)].filter(Boolean).join(" · ");
+    return '<div class="cf-it"><div class="d">' + esc(l.t) + (l.w ? '<span class="cf-tagg">PASÓ AL ÚLTIMO MES</span>' : "") +
+      '<div class="m cf-num">' + esc(meta) + (mueve(l) ? " · movió " + fmt(l.b) : "") + "</div>" +
+      (l.det ? '<div class="cf-detb">' + esc(l.det) + "</div>" : "") + '<div class="cf-regla">' + esc(l.r) + "</div></div>" +
+      '<span class="cf-num" style="color: ' + colD(l.n) + ';">' + FA(l.n) + "</span></div>";
+  }
+  // «Ver 10 más · quedan N» / «Ver menos». key: a quién pertenece; total: cuántas hay en total; n: piso.
+  function masBar(key, total, n, cargando) {
+    var cant = Math.min(total, Math.max(n, S.ab[key] || n)), rest = total - cant, b = "";
+    if (rest > 0) b += '<button type="button" class="cf-mas" data-mas="' + key + '" data-d="1" data-n="' + n + '">Ver ' + Math.min(PASO, rest) + " más · quedan " + miles(rest) + "</button>";
+    if (cant > n) b += '<button type="button" class="cf-mas" data-mas="' + key + '" data-d="-1" data-n="' + n + '">Ver menos</button>';
+    if (cargando) b += '<span class="cf-cargando">Cargando…</span>';
+    return { cant: cant, html: b ? '<div class="cf-masbar">' + b + "</div>" : "" };
+  }
+  var sinCodigo = function (s) { return String(s || "").replace(/^\d+ - /, ""); };
+  function avisosMotivoHTML(V) {
+    var rev = [], lec = [], txt = [];
+    (V.avisos || []).forEach(function (a) {
+      if (a.tipo === "al_borde") { rev.push("Pago anticipado a <b>" + esc(sinCodigo(a.referente)) + "</b>: salió caja el " + corta(a.desde) + ' (<span class="cf-num">' + fmt(a.mm) + " MM</span>) y la contrapartida quedó como anticipo al " + corta(a.hasta) + ", último mes del horizonte. No cambia el total, pero empeora los meses de en medio hasta que se apliquen facturas."); txt.push("Pago anticipado a " + sinCodigo(a.referente) + ": salió caja el " + corta(a.desde) + " (" + fmt(a.mm) + " MM) y la contrapartida quedó como anticipo al " + corta(a.hasta) + ". ¿Se van a aplicar facturas antes?"); }
+      else if (a.tipo === "doble_carga_oc") { rev.push("Posible doble carga: <b>" + esc(sinCodigo(a.referente)) + "</b> tiene la OC-" + esc(a.oc) + ' viva en 07 Órdenes de compra (<span class="cf-num">' + fmt(a.oc_mm) + "</span>) y facturas de esa OC en 05 Compras (<span class=\"cf-num\">" + fmt(a.facturas_mm) + "</span>). Confirmar si las facturas consumen la OC."); txt.push("Posible doble carga: " + sinCodigo(a.referente) + " tiene la OC-" + a.oc + " viva en 07 (" + fmt(a.oc_mm) + ") y facturas de esa OC en 05 (" + fmt(a.facturas_mm) + "). ¿Las facturas consumen la OC?"); }
+      else if (a.tipo === "conciliacion_grande") { rev.push('Albor reacomodó movimientos de bancos con fechas pasadas: se movieron <span class="cf-num">' + fmt(a.movido_mm) + ' MM</span> que netean <span class="cf-num">' + FA(a.neto_mm) + "</span>. Van en «Conciliación de bancos», no en pagos del día."); txt.push("Conciliación de bancos grande: se movieron " + fmt(a.movido_mm) + " MM con fechas pasadas, netean " + FA(a.neto_mm) + "."); }
+      else if (a.tipo === "caida_filas") { rev.push("La bajada trajo " + miles(a.filas) + " filas contra " + miles(a.filas_antes) + " del día anterior. Leer este día con cuidado."); txt.push("La bajada trajo " + a.filas + " filas contra " + a.filas_antes + " del día anterior."); }
+      else if (a.tipo === "sin_explicar") { rev.push('Hay <span class="cf-num">' + FA(a.mm) + " MM</span> que el detalle no explica. Revisar."); txt.push("Hay " + FA(a.mm) + " MM que el detalle no explica."); }
+      else if (a.tipo === "ejecutado_grande") lec.push('«Se pagó o se cobró» da neto <span class="cf-num">' + FA(a.neto_mm) + " MM</span>: no son pagos neutros, cambian el saldo. Mirá el detalle de ese grupo.");
+      else if (a.tipo === "cambio_horizonte") lec.push("Cambió el horizonte de " + corta(a.antes) + " a " + corta(a.ahora) + ": los meses nuevos van en «Entró al horizonte».");
+    });
+    var h = "";
+    if (rev.length) {
+      // Borrador para Giorgi: abre el correo con el texto; nunca manda solo.
+      var asunto = "Cash Flow: consulta sobre la carga del " + larga(V.fecha), cuerpo = "Hola Giorgi,\n\nEn la bajada del " + larga(V.fecha) + " (contra la del " + larga(V.anterior) + ") aparece esto para revisar:\n\n" + txt.map(function (t) { return "- " + t; }).join("\n") + "\n\n¿Me confirmás?\n\nGracias";
+      h += '<div class="cf-imp cf-rev" id="cf-arevisar"><div style="font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #8A5A0C; white-space: nowrap; padding-top: 2px;">A REVISAR</div><div class="tx">' +
+        rev.map(function (t) { return "<div>" + t + "</div>"; }).join("") +
+        '<a class="cf-btn" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; text-decoration: none;" href="mailto:?subject=' + encodeURIComponent(asunto) + "&body=" + encodeURIComponent(cuerpo) + '" id="cf-giorgi">Armar consulta para Giorgi</a>' +
+        '<span style="font-size: 12px; color: #5D6166;">Abre un borrador en tu correo con el texto de arriba. No manda nada solo.</span></div></div>';
+    }
+    h += lec.map(function (t) { return '<p class="cf-lect"><b style="color: #5D6166;">Lectura · </b>' + t + "</p>"; }).join("");
+    return h;
+  }
+  // El subtítulo «Por motivo» entero. d: dondeteparas del par; V: variaciones de la bajada B (con el rubro elegido).
+  function porMotivoHTML(d, H) {
+    var ka = d.bajada_a.fecha, kb = d.bajada_b.fecha, rs = S.rubSel;
+    var h = '<div class="cf-subt" id="cf-motivo"><div class="cf-subh"><h4>Por motivo</h4>';
+    var cab = function (extra) { return h + (extra || "") + "</div>"; };
+    if (d.misma_bajada) return cab() + '<p class="cf-subp" id="cf-motivo-txt">Estás parado en la misma carga que la que comparás. Tocá uno de los botones de arriba para ver un día contra el anterior.</p></div>';
+    var rv = cacheV[claveV(kb, rs, null)], V = rv && rv.data ? rv.data : null;
+    if (!rv || rv.cargando) return cab() + '<p class="cf-cargando" id="cf-motivo-txt">Agrupando por motivo…</p></div>';
+    if (rv.error) return cab() + '<p class="cf-subp" id="cf-motivo-txt" role="alert">No se pudo agrupar por motivo: ' + esc(rv.error) + " La lista de abajo sigue funcionando como siempre.</p></div>";
+    if (!V.existe) return cab() + '<p class="cf-subp" id="cf-motivo-txt">No hay foto del ' + larga(kb) + " o de su día anterior para agrupar por motivo.</p></div>";
+    if (!(V.anterior === ka && V.fecha === kb)) return cab() + '<p class="cf-subp" id="cf-motivo-txt">Por ahora la agrupación por motivo es de un día para el otro (elegiste ' + corta(ka) + " → " + corta(kb) + "): tocá uno de los botones de arriba. La lista de comprobantes de abajo sí vale para cualquier par de días.</p></div>";
+    if (!V.cierra) return cab() + '<p class="cf-subp" id="cf-motivo-txt" role="alert">La agrupación por motivo de la bajada del ' + larga(kb) + " no cierra contra la foto (" + FA(V.suma_mm) + " contra " + FA(V.total_mm) + " MM): no se muestra. Quedó para revisar en la función de la base; la lista de abajo sigue como siempre.</p></div>";
+    h = cab('<span class="cf-num" id="cf-motivo-suma" style="font-weight: 700; color: ' + colD(V.total_mm) + ';">suma ' + FA(V.total_mm) + " MM</span>");
+    h += '<p class="cf-subp">Lo mismo de esta tarjeta, agrupado por qué lo movió, al ' + corta(V.horizonte) + " (fin del horizonte), aunque mires otra fecha arriba. Acá sí entra bancos: pagos, cobros, pases y conciliación. Cada movimiento cae en un solo motivo y dice con qué regla se juntó con su contrapartida. La suma de los motivos se controla contra la diferencia de la foto" + (rs ? " del rubro" : "") + "; si no cierra, aparece «Sin explicar» y un aviso.</p>";
+    h += avisosMotivoHTML(V);
+    if (rs) h += '<div class="cf-filtro" id="cf-motivo-filtro">Mirando solo <b>' + esc(rubNombre(rs, d)) + '</b> (elegido en «Por rubro») <button type="button" class="cf-x" data-rubro="' + rs + '" aria-label="Quitar el filtro de rubro">✕</button></div>';
+    if (V.n === 0 || !Object.keys(V.motivos).length) return h + '<p class="cf-subp" id="cf-motivo-txt">Sin cambios entre esas dos cargas' + (rs ? " en este rubro" : "") + ".</p></div>";
+    // Barra: ancho = monto movido por motivo (de `motivos`, no de las filas).
+    var tb = 0; G.forEach(function (g) { if (V.motivos[g[0]]) tb += V.motivos[g[0]].movido_mm; });
+    if (!tb) tb = 1;
+    h += '<div style="display: flex; flex-direction: column; gap: 8px;"><div class="cf-bar" id="cf-motivo-bar">' + G.map(function (g) { var m = V.motivos[g[0]]; return m ? '<span style="width: ' + (m.movido_mm / tb * 100).toFixed(1) + "%; background: " + g[3] + ';"></span>' : ""; }).join("") + "</div>" +
+      '<div class="cf-ley">' + G.filter(function (g) { return V.motivos[g[0]]; }).map(function (g) { return '<span><i style="background: ' + g[3] + ';"></i>' + g[1] + "</span>"; }).join("") + "<span>(ancho = monto movido)</span></div></div>";
+    // Grupos (solo los que tienen movimientos), en el orden de pantalla.
+    h += '<div class="cf-grupos" id="cf-motivo-grupos">' + G.map(function (g) {
+      var m = V.motivos[g[0]];
+      if (!m) return "";
+      var full = cacheV[claveV(kb, rs, g[0])];
+      var filas = full && full.data ? full.data.filas : V.filas.filter(function (f) { return f.motivo === g[0]; });
+      var arr = lineas(filas, d).sort(function (p, q) { return peso(q) - peso(p); });
+      var key = "G" + g[0] + "|" + (rs || "");
+      var op = S.abiertos[key] !== undefined ? S.abiertos[key] : (g[4] || arr.some(function (l) { return l.w; }));
+      var bar = masBar(key, m.n_lineas, P_GRUPO, !!(full && full.cargando));
+      var enLista = arr.some(function (l) { return l.rc.some(function (c) { return c !== "01"; }); }) && !SIN_LISTA[g[0]];
+      var movio = ["fecha", "interno", "anticipo", "conciliacion", "horizonte"].indexOf(g[0]) >= 0 ? " · movió " + fmt(m.movido_mm) : "";
+      return '<details data-o="' + key + '" data-motivo="' + g[0] + '"' + (op ? " open" : "") + '><summary><span class="cf-dot2" style="background: ' + g[3] + ';"></span><span class="cf-st"><strong>' + g[1] + "</strong><small>" + g[2] + " · " + miles(m.n_lineas) + movio + "</small></span>" +
+        '<span class="cf-sv cf-num" style="color: ' + colD(m.neto_mm) + ';">' + FA(m.neto_mm) + '</span><span class="cf-car">▾</span></summary><div class="cf-items">' +
+        arr.slice(0, bar.cant).map(itemHTML).join("") + bar.html +
+        (enLista ? '<button type="button" class="cf-lnk" data-mot="' + g[0] + '">Ver estos en la lista de comprobantes ↓</button>' : "") + "</div></details>";
+    }).join("") + "</div>";
+    return h + "</div>";
+  }
+  // La fila «De un día para el otro» (de ?vista=variaciones_dias). Si la vista falló, no aparece y no bloquea nada.
+  function diaADiaHTML(d) {
+    var h = '<div class="cf-subt" id="cf-dias" style="border-top: 0;"><div class="cf-subh"><h4>De un día para el otro</h4><span style="font-size: 12px; color: #5D6166;">atajo: pone arriba «Parado el» en el día anterior y «Contra» en ese día</span></div>';
+    if (S.diasError) return h + '<p class="cf-subp">' + esc(S.diasError) + "</p></div>";
+    if (!S.dias) return h + '<p class="cf-cargando">Leyendo los últimos días…</p></div>';
+    var ka = d ? d.bajada_a.fecha : null, kb = d ? d.bajada_b.fecha : null;
+    h += '<div class="cf-dchips" role="group" aria-label="Elegir un día contra el anterior">' + S.dias.dias.map(function (x) {
+      var on = !!d && !d.misma_bajada && x.anterior === ka && x.fecha === kb;
+      return '<button type="button" class="cf-dchip" aria-pressed="' + (on ? "true" : "false") + '" data-ant="' + x.anterior + '" data-dia="' + x.fecha + '"><span>' + corta(x.anterior) + " → " + corta(x.fecha) + '</span><small class="cf-num" style="color: ' + colD(x.total_mm) + ';">' + FA(x.total_mm) + "</small></button>";
+    }).join("") + "</div>";
+    if (S.saltoAviso && d && !d.misma_bajada) h += '<div class="cf-avsel" id="cf-salto">Arriba quedó: <b>' + esc(pl(S.Q.desde)) + "</b> contra lo cargado <b>" + (kb === S.hoy.hoy ? "hoy" : "el " + corta(kb)) + '</b>. <button type="button" class="cf-btn" data-volver="1">Volver a hoy contra hoy</button></div>';
+    return h + "</div>";
+  }
+  // Cuántos avisos cuentan para la píldora «N a revisar» (sin las «Lecturas»).
+  var aRevisar = function () {
+    if (!S.dias || !S.dias.ultimo) return 0;
+    return (S.dias.ultimo.avisos || []).filter(function (a) { return a.tipo !== "cambio_horizonte" && a.tipo !== "ejecutado_grande"; }).length;
+  };
 
   // ---- Qué cambió ----
   function queCambio() {
@@ -730,6 +1063,9 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     h += selectorHTML("Q", s, r, { desde: "cf-desde", mira: "cf-mira", hasta: "cf-hasta" }, false);
     if (!d) return h + "</section>";
     var ka = d.bajada_a.fecha, kb = d.bajada_b.fecha, cMira = corta(d.mira);
+    // v1.2: ¿el par es un día contra el anterior? Lo dice la función (anterior === bajada_a).
+    var rvS = d.misma_bajada ? null : cacheV[claveV(kb, rs, null)];
+    var seguido = !!(rvS && rvS.data && rvS.data.existe && rvS.data.anterior === ka && rvS.data.fecha === kb);
     var nomRub = function (x) { return x.rubro.slice(0, 2) + " · " + x.etiqueta; };
     var rangoTxt = corta(s.desde) + " → " + corta(hasta) + ", mirando al " + cMira;
     var nadaTxt = d.misma_bajada ? "Es la misma carga: no hay cambios." : "Ninguno.";
@@ -757,17 +1093,22 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     }).join("");
     h += '<div class="cf-row cf-g7" id="cf-q-total" style="border-top: 2px solid #26292C; font-weight: 600;"><div>Saldo total</div><div></div>' +
       celda(d.total_a) + celda(d.total_b) + celdaD(d.cambio) + celda(d.saldo_hoy) + celdaD(d.cambio_vs_hoy) + "</div></div>" +
-      '<p style="margin: 8px 10px 10px; font-size: 12px; color: #5D6166;">Las dos primeras columnas son el saldo de ese rubro al ' + cMira + " parado en cada día de carga: proyectado si la fecha todavía no había llegado, real si ya había pasado. «Saldo hoy» es lo que hay hoy (bancos + cobros y pagos vencidos). La última columna es cuánto le falta o le sobra al " + cMira + " contra hoy. Tocá un rubro para verlo lunes a lunes abajo.</p></div>";
+      '<p style="margin: 8px 10px 10px; font-size: 12px; color: #5D6166;">Las dos primeras columnas son el saldo de ese rubro al ' + cMira + " parado en cada día de carga: proyectado si la fecha todavía no había llegado, real si ya había pasado. «Saldo hoy» es lo que hay hoy (bancos + cobros y pagos vencidos). La última columna es cuánto le falta o le sobra al " + cMira + " contra hoy. Tocá un rubro para verlo lunes a lunes abajo." +
+      (seguido ? " Además «Por motivo» muestra solo ese rubro" + (rs ? ' <a href="#cf-motivo" class="cf-lnk" data-ir="cf-motivo" style="min-height: 0; padding: 0;">ir ↓</a>' : "") + "." : "") + "</p></div>";
     // Cortes
     var co = cortesHTML("Q", s, d, false);
     h += '<div class="cf-card"><h3>' + esc(co.titulo) + '</h3><p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p>' + co.html + "</div>";
     // Comprobantes (?vista=entre): contra cualquier par de días y cualquier fecha.
+    // v1.2: dentro de la misma tarjeta, arriba de la lista, la fila «De un día para el otro» y el subtítulo «Por motivo».
     h += '<div class="cf-card" id="cf-comps"><h3>¿Por qué cambió? Comprobantes que más movieron</h3>' +
       '<p style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Qué se cargó, se borró o cambió de fecha en Albor entre los dos días. No es plata que entró o salió: son cambios en la carga.</p>';
+    h += diaADiaHTML(d);
+    h += porMotivoHTML(d, H);
+    h += '<div class="cf-subt" id="cf-lista" style="padding-left: 0; padding-right: 0;"><div class="cf-subh" style="padding: 0 10px;"><h4>Comprobantes que más movieron</h4></div>';
     if (d.misma_bajada) {
       h += '<p style="padding: 4px 10px 12px; font-size: 13px; color: #5D6166;">Estás parado en la misma carga que la que comparás. Mové «Parado el» para atrás para ver qué cambió.</p>';
     } else {
-      var re = cacheE[claveE(ka, kb, d.mira, S.compsTodos)], e = re && re.data ? re.data : null;
+      var re = cacheE[claveE(ka, kb, d.mira, true)], e = re && re.data ? re.data : null;
       if (!re || re.cargando) h += '<p class="cf-cargando" style="padding: 4px 10px 12px;">Buscando los comprobantes…</p>';
       else if (re.error) h += '<p class="cf-err" role="alert" style="padding: 4px 10px 12px;">' + esc(re.error) + "</p>";
       else if (e.comprobantes === null) h += '<div style="padding: 4px 10px 12px;">' + avisos(e.avisos) + "</div>";
@@ -779,23 +1120,49 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
           if (a === b) return "Cambió el importe · " + corta(a);
           return "Cambió de fecha o de importe · entre el " + corta(a) + " y el " + corta(b);
         };
+        // v1.2: la etiqueta de motivo de cada renglón: cruce rubro_cod + descripcion + referente con las filas de «Por
+        // motivo» (las que vinieron, más las completas del motivo filtrado). Bancos y filas sintéticas no cruzan.
+        var mapa = {}, VV = seguido ? rvS.data : null;
+        var cruzar = function (filas) { (filas || []).forEach(function (f) { if (f.rubro_cod === "01" || f.id >= 100000) return; var kk = f.rubro_cod + "|" + (f.descripcion || "") + "|" + (f.referente || ""); if (!mapa[kk]) mapa[kk] = []; if (mapa[kk].indexOf(f.motivo) < 0) mapa[kk].push(f.motivo); }); };
+        if (VV) { cruzar(VV.filas); G.forEach(function (g) { var fv = cacheV[claveV(kb, rs, g[0])]; if (fv && fv.data) cruzar(fv.data.filas); var fl = cacheV[claveV(kb, null, g[0])]; if (fl && fl.data) cruzar(fl.data.filas); }); }
+        var C = e.comprobantes.map(function (c) { return { c: c, m: mapa[c.rubro + "|" + (c.descripcion || "") + "|" + (c.referente || "")] || [] }; });
+        var motFil = seguido && GN[S.motFil] ? S.motFil : null;
+        if (motFil) C = C.filter(function (x) { return x.m.indexOf(motFil) >= 0; });
+        var kC = "comp|" + (motFil || ""), nC = P_LISTA;
+        var cantC = S.compsTodos ? C.length : Math.min(C.length, Math.max(nC, S.ab[kC] || nC)), restC = C.length - cantC;
+        var vis = C.slice(0, cantC);
+        var filtroCarg = motFil && !(cacheV[claveV(kb, null, motFil)] && cacheV[claveV(kb, null, motFil)].data);
         h += '<div style="padding: 0 10px 6px;">' + avisos(e.avisos) + "</div>";
-        h += '<p class="cf-num" style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Entre lo cargado el ' + corta(ka) + " y " + (kb === H.hoy ? "hoy" : "el " + corta(kb)) + " cambiaron " + miles(e.n_comprobantes) + " comprobantes, que mueven " + fmtS(e.total) + " MM el saldo al " + cMira + "; la conciliación de bancos movió " + fmtS(e.bancos) + ". " +
-          (e.comprobantes.length ? "Estos son los " + e.mostrados + " que más pesan:" : "Ningún comprobante cambió el saldo a esa fecha.") + "</p>";
-        if (e.comprobantes.length) {
-          h += '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll">' +
+        h += '<p class="cf-num" id="cf-lista-txt" style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Entre lo cargado el ' + corta(ka) + " y " + (kb === H.hoy ? "hoy" : "el " + corta(kb)) + " cambiaron " + miles(e.n_comprobantes) + " comprobantes, que mueven " + fmtS(e.total) + " MM el saldo al " + cMira + "; la conciliación de bancos movió " + fmtS(e.bancos) + ". " +
+          (e.comprobantes.length ? (motFil ? "Filtrados por motivo:" : (vis.length < C.length ? "Estos son los " + miles(vis.length) + " que más pesan:" : "Estos son todos, de mayor a menor:")) : "Ningún comprobante cambió el saldo a esa fecha.") + "</p>";
+        if (motFil) {
+          h += '<div class="cf-filtro" id="cf-lista-filtro" style="margin: 0 10px 8px;">Solo: <b>' + GN[motFil][1] + '</b> (elegido en «Por motivo») <button type="button" class="cf-x" data-mot="' + motFil + '" aria-label="Quitar el filtro de motivo">✕</button></div>';
+          if (!C.length && !filtroCarg) {
+            var soloBancos = VV.filas.filter(function (f) { return f.motivo === motFil; }).every(function (f) { return f.rubro_cod === "01" || f.id >= 100000; });
+            h += '<p style="padding: 4px 10px 12px; font-size: 13px; color: #5D6166;">' + (soloBancos ? "Estos movimientos son de bancos: en esta lista van aparte, en la conciliación de bancos." : "Ningún comprobante de la lista cae en «" + GN[motFil][1] + "».") + "</p>";
+          }
+          if (filtroCarg) h += '<p class="cf-cargando" style="padding: 0 10px 8px;">Completando el motivo…</p>';
+        }
+        if (vis.length) {
+          h += '<p class="cf-only-sm" style="padding: 2px 10px 4px; font-size: 12px; color: #5D6166;">Deslizá la tabla hacia el costado →</p><div class="cf-scroll" id="cf-lista-tabla">' +
             '<div class="cf-row cf-g4 cf-head"><div>Comprobante</div><div class="cf-hide-sm" style="text-align: left;">Rubro</div><div>Qué pasó (fecha de cobro o pago)</div><div>Efecto al ' + cMira + "</div></div>" +
-            e.comprobantes.map(function (c) {
+            vis.map(function (x) {
+              var c = x.c;
               return '<div class="cf-row cf-g4"><div style="white-space: normal;"><div style="font-weight: 500;">' + esc(c.descripcion) + '</div><div style="font-size: 12px; color: #5D6166;">' + esc(c.referente) + "</div></div>" +
                 '<div class="cf-hide-sm" style="text-align: left; white-space: normal; font-size: 13px; color: #5D6166;">' + esc(c.rubro.slice(0, 2) + " · " + (c.etiqueta || c.nombre)) + "</div>" +
-                '<div style="white-space: normal; font-size: 13px;">' + esc(que(c.tipos, c.fecha_min, c.fecha_max)) + "</div>" +
+                '<div style="white-space: normal; font-size: 13px;">' + esc(que(c.tipos, c.fecha_min, c.fecha_max)) +
+                (x.m.length ? "<br>" + x.m.map(function (m) { return '<span class="cf-gtag"><i style="background: ' + GN[m][3] + ';"></i>' + GN[m][1] + "</span>"; }).join("") : "") + "</div>" +
                 '<div style="font-weight: 600; color: ' + colorD(c.efecto) + ';">' + FA(c.efecto) + "</div></div>";
             }).join("") + "</div>";
-          if (e.n_comprobantes > e.mostrados) h += '<div style="padding: 10px 10px 6px;"><button type="button" class="cf-btn" data-comps="todos">Ver los ' + miles(e.n_comprobantes) + " comprobantes</button></div>";
-          else if (S.compsTodos) h += '<div style="padding: 10px 10px 6px;"><button type="button" class="cf-btn" data-comps="primeros">Ver solo los que más pesan</button></div>';
+        }
+        if (restC > 0 || cantC > nC) {
+          h += '<div class="cf-masbar" style="padding: 6px 10px 0;">' +
+            (restC > 0 ? '<button type="button" class="cf-mas" data-mas="' + kC + '" data-d="1" data-n="' + nC + '">Ver ' + Math.min(PASO, restC) + " más · quedan " + miles(restC) + "</button>" : "") +
+            (cantC > nC ? '<button type="button" class="cf-mas" data-mas="' + kC + '" data-d="-1" data-n="' + nC + '">Ver menos</button>' : "") + "</div>";
         }
       }
     }
+    h += "</div>";
     h += "</div>";
     // Lunes a lunes
     var lunes = dR ? dR.lunes : d.lunes;
@@ -998,6 +1365,14 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
       h += '<p style="font-size: 13px; color: #5D6166;">Los diez días coinciden con administración.</p>';
     }
     h += "</div>";
+    // v1.2: los días con salto grande del total enlazan a su explicación en Qué cambió («Por motivo»).
+    if (S.dias && S.dias.dias.length) {
+      var saltos = S.dias.dias.filter(function (x) { return Math.abs(x.total_mm) >= SALTO_GRANDE; });
+      h += '<div class="cf-card2" id="cf-est-saltos"><h3>Saltos grandes del total</h3><p class="cf-gris" style="font-size: 13px;">De los últimos ' + S.dias.dias.length + " días con bajada, los que movieron el saldo al horizonte " + miles(SALTO_GRANDE) + " MM o más de un día para el otro. Cada uno enlaza a su explicación por motivo en Qué cambió.</p>" +
+        (saltos.length ? saltos.map(function (x) {
+          return '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-top: 1px dashed #E3DDD1;"><span class="cf-num" style="font-size: 14px;">Bajada del ' + corta(x.fecha) + ' · el total se movió <b style="color: ' + colD(x.total_mm) + ';">' + FA(x.total_mm) + '</b></span><button type="button" class="cf-btn" data-ant="' + x.anterior + '" data-dia="' + x.fecha + '" data-tab="cambio" data-ir="motivo">Ver por qué</button></div>';
+        }).join("") : '<p style="font-size: 14px;">Ningún salto grande en esos días.</p>') + "</div>";
+    }
     h += '<div class="cf-card2"><h3>Cómo se arma el número</h3><ul>' +
       "<li>Se lee desde hoy, igual que administración: lo vencido y no resuelto se suma al mes en curso.</li>" +
       "<li>Bancos es el saldo conciliado del día: no tiene comprobante detrás y no se usa para comparar.</li>" +
@@ -1020,7 +1395,8 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
       "<p>«▲ +100 contra el lunes» = para ese día, con lo cargado hoy se espera tener 100 MM más que con lo cargado el lunes.</p>" +
       "<p>«Dónde te parás»: la fecha es dónde te parás, no hacia dónde mirás. «Parado el» es el día de carga en Albor (hoy o para atrás) y «Mirando al» la fecha que querés ver, para atrás o para adelante. Si la fecha todavía no había llegado, es lo proyectado con lo cargado ese día; si ya había pasado, lo que realmente hubo (hay saldo de bancos desde el 01/09). Se compara contra lo cargado hoy; con «Comparar contra otro día» elegís otro. Es el mismo selector que en «Qué cambió».</p></div>" +
       '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Qué cambió</h3>' +
-      "<p>El mismo «Dónde te parás»: «Parado el» (día de carga), «Mirando al» (la fecha que querés ver, para atrás o para adelante) y contra lo cargado hoy u otro día. Muestra el saldo a esa fecha parado en cada día, por rubro, en los días 10 y fines de mes, los comprobantes que más movieron (qué se cargó, borró o cambió de fecha en Albor) y lunes a lunes. No es plata que entró o salió: son cambios en la carga.</p></div>" +
+      "<p>El mismo «Dónde te parás»: «Parado el» (día de carga), «Mirando al» (la fecha que querés ver, para atrás o para adelante) y contra lo cargado hoy u otro día. Muestra el saldo a esa fecha parado en cada día, por rubro, en los días 10 y fines de mes, los comprobantes que más movieron (qué se cargó, borró o cambió de fecha en Albor) y lunes a lunes. No es plata que entró o salió: son cambios en la carga.</p>" +
+      "<p>«Por motivo»: cuando comparás un día contra el anterior, los mismos cambios agrupados por qué los movió (nuevo o eliminado, cambió el importe, se corrió de fecha, anticipo, se pagó o se cobró, conciliación de bancos, vencido, préstamos y cauciones, pase entre cuentas propias), siempre al fin del horizonte. «A revisar» marca lo que conviene preguntar a administración. Los botones «De un día para el otro» son el atajo.</p></div>" +
       '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Cash Flow Hoy</h3><p>Lo que entra y sale cada mes, por rubro, según lo cargado hoy. Es la planilla de administración. Sombreado: campaña siguiente (después del 30/11).</p></div>' +
       '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Granos</h3><p>Por grano y por mes: stock a vender, gastos comerciales (con fletes) y costo de cosecha. Solo lo que está en Albor; lo que falta o no cuadra no se completa. Los fletes del rubro 16 no suman en el saldo.</p></div>' +
       '<div style="display: flex; flex-direction: column; gap: 4px;"><h3>Estado de la web</h3><p>Controles automáticos de cada mañana: si coincide con administración, si los datos guardados están bien y si hay alarmas. El punto verde de arriba los resume.</p></div>' +
@@ -1048,7 +1424,7 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     else if (S.tab === "hecho") h += cashFlowHoy();
     else if (S.tab === "granos") h += granos();
     else h += estadoWeb();
-    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1.1.1 (02/10/2026) · Los datos de un día ya guardado no cambian nunca. " +
+    h += "<footer>Datos de Albor de cada madrugada · cashflow.html v1.2 (02/10/2026) · Los datos de un día ya guardado no cambian nunca. " +
       'La clave del link queda recordada en este aparato. <a href="#" id="olvidar">Olvidar la clave en este aparato</a>.</footer></div>' + ayuda();
     app.innerHTML = h;
     // La leyenda «Deslizá la tabla» solo si la tabla de al lado de verdad se desliza.
@@ -1058,6 +1434,8 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     });
     if (act) { var e = document.getElementById(act); if (e) e.focus({ preventScroll: true }); }
     window.scrollTo(0, y);
+    // v1.2: #ancla=motivo (píldora, «Ver por qué», deep link): bajar a «Por motivo» una sola vez, cuando ya está pintado.
+    if (S.anclaPend && S.tab === "cambio") { var z = document.getElementById("cf-motivo"); if (z) { S.anclaPend = false; z.scrollIntoView({ behavior: "smooth", block: "start" }); } }
   }
 
   // --- arranque -------------------------------------------------------------------------
