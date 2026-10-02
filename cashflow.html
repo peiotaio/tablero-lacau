@@ -75,7 +75,10 @@
       quedan N», «Ver menos», nunca menos de 20; #todos=1 abre todo). Cada renglón lleva la etiqueta de su motivo
       (cruce rubro_cod + descripcion + referente; puede llevar más de una). «Ver estos en la lista ↓» filtra la lista
       a ese motivo (chip «Solo: … ✕»); bancos no va a la lista (conciliación, vencido, sin explicar ni préstamos).
-    * Estado de la web: «Ver por qué» en los días con salto grande del total (|total| ≥ 500 MM, de los últimos 10).
+    * Etiqueta de motivo en TODOS los renglones de la lista (decisión de Peio 02/10): si algún renglón visible no queda
+      cubierto por las 15 líneas de su motivo, se piden enteros (&motivo=X) los motivos recortados que pueden ir a la
+      lista, una sola vez por motivo y par; si falla, el renglón queda sin etiqueta y la lista no se rompe.
+    * Estado de la web: «Ver por qué» en los días con salto grande del total (saltos de más de 500 MM, de los últimos 10).
     * Colores de la barra y los puntos de motivo (decisión de Peio 02/10 14:27, excepción a F2 solo acá); el dorado de
       fondo sigue siendo solo para «A revisar»; «PASÓ AL ÚLTIMO MES» va en gris.
     Deep link: #tab=cambio&desde=&hasta=&motivo=&ancla=motivo&todos=1. El filtro de motivo se limpia al cambiar el par.
@@ -383,6 +386,7 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     motFil: null,                                // v1.2: filtro de la lista por motivo (#motivo=)
     ancla: hash.get("ancla") === "motivo" ? "motivo" : null, anclaPend: hash.get("ancla") === "motivo",
     ab: {}, abiertos: {}, saltoAviso: false,     // v1.2: cuántos se ven por grupo / lista, grupos abiertos, aviso del atajo
+    sinEtiqueta: false,                          // v1.2: la lista muestra renglones sin etiqueta de motivo (se piden los motivos enteros)
     dias: null, diasError: null, diasCargando: false,   // ?vista=variaciones_dias (v1.2)
     granos: null, granosError: null,   // ?vista=granos (v1.1)
     grano: hash.get("grano") || "Todos",
@@ -563,6 +567,17 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
           });
           // El filtro de la lista por motivo necesita todas las filas de ese motivo (sin rubro: la lista no se filtra por rubro).
           if (S.motFil) pedirVar(kb, null, S.motFil);
+          // Etiqueta en todos los renglones (decisión de Peio 02/10): si la lista muestra renglones que no quedan
+          // cubiertos por las 15 líneas de su motivo, se piden enteros los motivos recortados que pueden ir a la lista
+          // (una vez por motivo y par: cacheV guarda la respuesta o el error; si falla, el renglón queda sin etiqueta).
+          if (S.sinEtiqueta) {
+            var vb = cacheV[claveV(kb, null, null)], VB = vb && vb.data && vb.data.existe ? vb.data : (S.rubSel ? null : v.data);
+            if (!vb) pedirVar(kb, null, null);
+            else if (VB) Object.keys(VB.motivos).forEach(function (g) {
+              if (SIN_LISTA[g] || VB.motivos[g].n_lineas <= lineasCargadas(VB, g)) return;
+              pedirVar(kb, null, g);
+            });
+          }
         }
       }
     }
@@ -630,14 +645,14 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
       tick(); return;
     }
     if (el.hasAttribute("data-volver")) { limpiar(); S.Q.desde = S.hoy.hoy; S.Q.otro = false; S.Q.hasta = S.hoy.hoy; S.Q.err = ""; tick(); return; }
-    if (el.hasAttribute("data-ir")) { ev.preventDefault(); var z = document.getElementById(el.getAttribute("data-ir")); if (z) z.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (el.hasAttribute("data-ir")) { ev.preventDefault(); var z = document.getElementById(el.getAttribute("data-ir")); if (z) z.scrollIntoView({ behavior: "auto", block: "start" }); return; }
     if (el.hasAttribute("data-mot")) {
       var mo = el.getAttribute("data-mot");
       S.motFil = S.motFil === mo ? null : mo;
       // «Ver estos en la lista» abre la lista completa (equivale a todos=1); al sacar el filtro vuelve a los 20 de siempre.
       S.compsTodos = !!S.motFil; delete S.ab["comp|"]; delete S.ab["comp|" + mo];
       tick();
-      if (S.motFil) { var zl = document.getElementById("cf-lista"); if (zl) zl.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      if (S.motFil) { var zl = document.getElementById("cf-lista"); if (zl) zl.scrollIntoView({ behavior: "auto", block: "start" }); }
       return;
     }
     if (el.hasAttribute("data-mas")) {
@@ -981,11 +996,11 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     });
     var h = "";
     if (rev.length) {
-      // Borrador para Giorgi: abre el correo con el texto; nunca manda solo.
+      // Borrador para Giorgi (gvidela@lacau.com.ar, decisión de Peio 02/10): abre el correo con el texto; nunca manda solo.
       var asunto = "Cash Flow: consulta sobre la carga del " + larga(V.fecha), cuerpo = "Hola Giorgi,\n\nEn la bajada del " + larga(V.fecha) + " (contra la del " + larga(V.anterior) + ") aparece esto para revisar:\n\n" + txt.map(function (t) { return "- " + t; }).join("\n") + "\n\n¿Me confirmás?\n\nGracias";
       h += '<div class="cf-imp cf-rev" id="cf-arevisar"><div style="font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #8A5A0C; white-space: nowrap; padding-top: 2px;">A REVISAR</div><div class="tx">' +
         rev.map(function (t) { return "<div>" + t + "</div>"; }).join("") +
-        '<a class="cf-btn" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; text-decoration: none;" href="mailto:?subject=' + encodeURIComponent(asunto) + "&body=" + encodeURIComponent(cuerpo) + '" id="cf-giorgi">Armar consulta para Giorgi</a>' +
+        '<a class="cf-btn" style="align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; text-decoration: none;" href="mailto:gvidela@lacau.com.ar?subject=' + encodeURIComponent(asunto) + "&body=" + encodeURIComponent(cuerpo) + '" id="cf-giorgi">Armar consulta para Giorgi</a>' +
         '<span style="font-size: 12px; color: #5D6166;">Abre un borrador en tu correo con el texto de arriba. No manda nada solo.</span></div></div>';
     }
     h += lec.map(function (t) { return '<p class="cf-lect"><b style="color: #5D6166;">Lectura · </b>' + t + "</p>"; }).join("");
@@ -1124,13 +1139,14 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
         // motivo» (las que vinieron, más las completas del motivo filtrado). Bancos y filas sintéticas no cruzan.
         var mapa = {}, VV = seguido ? rvS.data : null;
         var cruzar = function (filas) { (filas || []).forEach(function (f) { if (f.rubro_cod === "01" || f.id >= 100000) return; var kk = f.rubro_cod + "|" + (f.descripcion || "") + "|" + (f.referente || ""); if (!mapa[kk]) mapa[kk] = []; if (mapa[kk].indexOf(f.motivo) < 0) mapa[kk].push(f.motivo); }); };
-        if (VV) { cruzar(VV.filas); G.forEach(function (g) { var fv = cacheV[claveV(kb, rs, g[0])]; if (fv && fv.data) cruzar(fv.data.filas); var fl = cacheV[claveV(kb, null, g[0])]; if (fl && fl.data) cruzar(fl.data.filas); }); }
+        if (VV) { cruzar(VV.filas); var vSin = cacheV[claveV(kb, null, null)]; if (vSin && vSin.data && vSin.data.existe) cruzar(vSin.data.filas); G.forEach(function (g) { var fv = cacheV[claveV(kb, rs, g[0])]; if (fv && fv.data) cruzar(fv.data.filas); var fl = cacheV[claveV(kb, null, g[0])]; if (fl && fl.data) cruzar(fl.data.filas); }); }
         var C = e.comprobantes.map(function (c) { return { c: c, m: mapa[c.rubro + "|" + (c.descripcion || "") + "|" + (c.referente || "")] || [] }; });
         var motFil = seguido && GN[S.motFil] ? S.motFil : null;
         if (motFil) C = C.filter(function (x) { return x.m.indexOf(motFil) >= 0; });
         var kC = "comp|" + (motFil || ""), nC = P_LISTA;
         var cantC = S.compsTodos ? C.length : Math.min(C.length, Math.max(nC, S.ab[kC] || nC)), restC = C.length - cantC;
         var vis = C.slice(0, cantC);
+        S.sinEtiqueta = seguido && vis.some(function (x) { return !x.m.length; });
         var filtroCarg = motFil && !(cacheV[claveV(kb, null, motFil)] && cacheV[claveV(kb, null, motFil)].data);
         h += '<div style="padding: 0 10px 6px;">' + avisos(e.avisos) + "</div>";
         h += '<p class="cf-num" id="cf-lista-txt" style="padding: 0 10px 6px; font-size: 13px; color: #5D6166;">Entre lo cargado el ' + corta(ka) + " y " + (kb === H.hoy ? "hoy" : "el " + corta(kb)) + " cambiaron " + miles(e.n_comprobantes) + " comprobantes, que mueven " + fmtS(e.total) + " MM el saldo al " + cMira + "; la conciliación de bancos movió " + fmtS(e.bancos) + ". " +
@@ -1368,7 +1384,7 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     // v1.2: los días con salto grande del total enlazan a su explicación en Qué cambió («Por motivo»).
     if (S.dias && S.dias.dias.length) {
       var saltos = S.dias.dias.filter(function (x) { return Math.abs(x.total_mm) >= SALTO_GRANDE; });
-      h += '<div class="cf-card2" id="cf-est-saltos"><h3>Saltos grandes del total</h3><p class="cf-gris" style="font-size: 13px;">De los últimos ' + S.dias.dias.length + " días con bajada, los que movieron el saldo al horizonte " + miles(SALTO_GRANDE) + " MM o más de un día para el otro. Cada uno enlaza a su explicación por motivo en Qué cambió.</p>" +
+      h += '<div class="cf-card2" id="cf-est-saltos"><h3>Saltos grandes del total</h3><p class="cf-gris" style="font-size: 13px;">De los últimos ' + S.dias.dias.length + " días con bajada, los saltos de más de " + miles(SALTO_GRANDE) + " MM del saldo al horizonte de un día para el otro. Cada uno enlaza a su explicación por motivo en Qué cambió.</p>" +
         (saltos.length ? saltos.map(function (x) {
           return '<div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 0; border-top: 1px dashed #E3DDD1;"><span class="cf-num" style="font-size: 14px;">Bajada del ' + corta(x.fecha) + ' · el total se movió <b style="color: ' + colD(x.total_mm) + ';">' + FA(x.total_mm) + '</b></span><button type="button" class="cf-btn" data-ant="' + x.anterior + '" data-dia="' + x.fecha + '" data-tab="cambio" data-ir="motivo">Ver por qué</button></div>';
         }).join("") : '<p style="font-size: 14px;">Ningún salto grande en esos días.</p>') + "</div>";
@@ -1435,7 +1451,8 @@ footer{font-size:12px;color:#5D6166;border-top:1px solid #D6CFC1;padding-top:12p
     if (act) { var e = document.getElementById(act); if (e) e.focus({ preventScroll: true }); }
     window.scrollTo(0, y);
     // v1.2: #ancla=motivo (píldora, «Ver por qué», deep link): bajar a «Por motivo» una sola vez, cuando ya está pintado.
-    if (S.anclaPend && S.tab === "cambio") { var z = document.getElementById("cf-motivo"); if (z) { S.anclaPend = false; z.scrollIntoView({ behavior: "smooth", block: "start" }); } }
+    // Los saltos van sin animación: una respuesta que llega en el medio vuelve a pintar y restaura el scroll anterior.
+    if (S.anclaPend && S.tab === "cambio") { var z = document.getElementById("cf-motivo"); if (z) { S.anclaPend = false; z.scrollIntoView({ behavior: "auto", block: "start" }); } }
   }
 
   // --- arranque -------------------------------------------------------------------------

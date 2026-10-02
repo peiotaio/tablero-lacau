@@ -531,7 +531,7 @@ async function porMotivo() {
       resumen.push('A REVISAR: ' + rev.slice(0, 300));
       for (const re of [/ZENI/, /948,00 MM/, /30\/06/, /OC-150/, /−1\.579,40/, /−1\.841,70/]) { if (!re.test(rev)) falla(`${rot}: A REVISAR no dice ${re}`); else ok(`${rot}: A REVISAR dice ${re}`); }
       const href = await pag.evaluate(() => document.querySelector('#cf-giorgi')?.getAttribute('href') ?? '');
-      chk('«Armar consulta para Giorgi» es un borrador (mailto:)', href.startsWith('mailto:?subject='), true);
+      chk('«Armar consulta para Giorgi» es un borrador (mailto: a gvidela@lacau.com.ar)', href.startsWith('mailto:gvidela@lacau.com.ar?subject='), true);
       if (!/ZENI/.test(decodeURIComponent(href))) falla(`${rot}: el borrador para Giorgi no lleva el texto de Zeni`);
       chk('no hay «Lectura» en este día', await pag.evaluate(() => document.querySelectorAll('#cf-motivo .cf-lect').length), 0);
       const bar = await pag.evaluate(() => document.querySelectorAll('#cf-motivo-bar span').length);
@@ -551,7 +551,10 @@ async function porMotivo() {
       chk('20 renglones visibles', L.length, 20);
       chk('el primero es la OC de Cargill', /OC - 150/.test(L[0]?.txt), true);
       chk('el primero lleva la etiqueta «Nuevo o eliminado»', L[0]?.tags.join(','), 'Nuevo o eliminado');
-      chk('renglones con etiqueta de motivo (de 20)', L.filter((f) => f.tags.length).length >= 15, true);
+      // (decisión de Peio 02/10) etiqueta en TODOS los renglones: la página pide enteros los motivos recortados.
+      try { await pag.waitForFunction(() => { const f = Array.from(document.querySelectorAll('#cf-lista-tabla .cf-row:not(.cf-head)')); return f.length > 0 && f.every((r) => r.querySelector('.cf-gtag')); }, null, { timeout: 45000 }); } catch { /* se evalúa abajo */ }
+      L = await filasLista(pag);
+      chk('los 20 renglones llevan etiqueta de motivo', L.filter((f) => f.tags.length).length, 20);
       resumen.push('etiquetas: ' + L.map((f) => f.tags.join('+') || '—').join(' · '));
       let mb = await masLista(pag);
       chk('botón «Ver 10 más · quedan 243»', mb.mas, 'Ver 10 más · quedan 243'); chk('sin «Ver menos» al principio', mb.menos, false);
@@ -559,6 +562,9 @@ async function porMotivo() {
       await pag.waitForFunction(() => document.querySelectorAll('#cf-lista-tabla .cf-row:not(.cf-head)').length === 30, null, { timeout: 10000 }).catch(() => {});
       L = await filasLista(pag); mb = await masLista(pag);
       chk('después de «Ver 10 más»: 30 renglones', L.length, 30); chk('«quedan 233»', mb.mas, 'Ver 10 más · quedan 233'); chk('ahora sí «Ver menos»', mb.menos, true);
+      try { await pag.waitForFunction(() => { const f = Array.from(document.querySelectorAll('#cf-lista-tabla .cf-row:not(.cf-head)')); return f.length === 30 && f.every((r) => r.querySelector('.cf-gtag')); }, null, { timeout: 45000 }); } catch { /* abajo */ }
+      L = await filasLista(pag);
+      chk('los 30 renglones llevan etiqueta de motivo', L.filter((f) => f.tags.length).length, 30);
       if (!/Estos son los 30 que más pesan:/.test(await texto(pag, '#cf-lista-txt'))) falla(`${rot}: el texto no pasó a "los 30 que más pesan"`);
       await pag.click('#cf-lista .cf-mas[data-d="-1"]');
       await pag.waitForFunction(() => document.querySelectorAll('#cf-lista-tabla .cf-row:not(.cf-head)').length === 20, null, { timeout: 10000 }).catch(() => {});
@@ -709,7 +715,8 @@ async function porMotivo() {
     try { await pag.waitForSelector('#cf-est-saltos button[data-dia]', { timeout: 45000 }); } catch { falla(`${rot}: no aparecieron los botones «Ver por qué»`); }
     const dias = await pag.evaluate(() => Array.from(document.querySelectorAll('#cf-est-saltos button[data-dia]')).map((b) => b.getAttribute('data-dia')));
     resumen.push(`saltos grandes: ${dias.join(', ')}`);
-    chk('3 días con |total| ≥ 500', dias.join(','), '2026-09-30,2026-10-01,2026-10-02');
+    chk('3 días con saltos de más de 500 MM', dias.join(','), '2026-09-30,2026-10-01,2026-10-02');
+    if (!/saltos de más de 500 MM/.test(await texto(pag, '#cf-est-saltos'))) falla(`${rot}: la tarjeta no dice el umbral ("saltos de más de 500 MM")`); else ok(`${rot}: la tarjeta dice el umbral`);
     await pag.click('#cf-est-saltos button[data-dia="2026-09-30"]');
     if (await esperarGrupos(pag, rot + ' → Qué cambió')) {
       chk('Parado el = 29/09', await pag.evaluate(() => document.querySelector('#cf-desde')?.value), '2026-09-29');
